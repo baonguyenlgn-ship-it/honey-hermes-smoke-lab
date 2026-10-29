@@ -1,0 +1,14 @@
+# Supertonic 3 OpenRAIL-M — Honey commercial/prelaunch gap analysis (NOT legal clearance)
+
+Date: 2026-10-30 KST. Research-only Honey Studio Bảo V1 PR #8, fixed model version `3cadd1ee6394adea1bd021217a0e650ede09a323`.
+
+Official primary model card: https://huggingface.co/Supertone/supertonic-3
+Exact model license: https://huggingface.co/Supertone/supertonic-3/blob/3cadd1ee6394adea1bd021217a0e650ede09a323/LICENSE
+
+**Key distinction:** example source is MIT but ONNX weights are **BigScience Open RAIL-M**; model/SaaS use is not categorically forbidden. Section 1(g) calls hosted API/web access distribution; Section 4 conditionally allows third-party remote access subject to obligations. It does **not** mean Honey's commercial integration is cleared. Section 4(a) requires enforceable use restrictions in applicable agreements and notice to subsequent model users; 4(b) model-license copies for relevant recipients; 4(c) change notices where model files are modified; 4(d) notice/attribution retention. Section 5 and Attachment A carry prohibited uses, notably undisclosed AI-generated content (A(e)), impersonation without consent (A(g)), and fully automated binding obligations (A(h)). Section 6 addresses outputs but holds the user responsible for subsequent use. Section 8 does not grant Supertone trademark endorsement.
+
+**Practical architecture implications:** If Honey later offers AI voice hosting to businesses, evaluate license copy/terms/disclosure for those tenants. Every real-facing call/live should clearly announce synthetic AI audio and preserve human escalation/appropriate controls before binding sales commitments. Do not imitate Bảo's identity or other real people without express consent. Protect personal data, names, shipping addresses, commerce histories under relevant Korean rules. Conduct a separate jurisdiction-specific legal review before any paid or public service, including whether programmatic sales messages count as binding decisions. These are preliminary flags, not legal advice or proof of statutory requirements.
+
+`supertonic3_openrail_preflight.json` enumerates 10 real unresolved requirements with `PENDING` evidence and eight independent signoffs all false. `supertonic3_openrail_gate.js` fails closed on fabricated compliance status, missing notices/clauses, altered upstream model revision and prematurely authorized publication/production. The independent QA suite uses synthetic mutated metadata only, **no weights, WAV, external customer messaging or payment**.
+
+**NEXT_SAFE_STEP:** legal/operational human assessment of the precise hosted-service mode, model usage restrictions, delivery of required terms/license to applicable third parties, AI disclosure localization VI+KO, human approval gate on order confirmations, and native-listener acoustic review. No commercial signoff until those are actually documented, verified independently and approved by Owner.

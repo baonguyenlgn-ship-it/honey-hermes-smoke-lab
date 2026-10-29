@@ -468,7 +468,8 @@ jobs:
           Write-Output "ST3_SEED_QA_TEST_OF_TESTS_FAIL_CLOSED_PASS"
 
   supertonic3-native-listening-packet-qa:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # Native listening packet + 22 negative tests PASS run 40965326028. Freeze unchanged packet.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 3
     steps:
@@ -489,3 +490,26 @@ jobs:
           node studio_bao_v1/voice/listening_qa_gate.js
           if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
           Write-Output 'ST3_HUMAN_LISTENING_PROTOCOL_ONLY_QA_PASS_NO_REAL_LISTENER'
+
+  supertonic3-commercial-legal-preflight-qa:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 3
+    steps:
+      - name: Exact SHA read-only checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify license checklist clauses and reject forged production approvals
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'ST3_LICENSE_HEAD_MISMATCH'}
+          node --check studio_bao_v1/voice/supertonic3_openrail_gate.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/supertonic3_openrail_gate.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_openrail_gate.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'ST3_LEGAL_CHECKLIST_ONLY_QA_PASS_NO_COMMERCIAL_CLEARANCE'

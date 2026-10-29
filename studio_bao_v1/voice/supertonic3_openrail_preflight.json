@@ -1,0 +1,104 @@
+{
+  "schema": "honey.st3-openrail-m-commercial-preflight.v1",
+  "stage": "LEGAL_AND_PRODUCT_REVIEW_REQUIRED",
+  "source": {
+    "model": "Supertone/supertonic-3",
+    "revision": "3cadd1ee6394adea1bd021217a0e650ede09a323",
+    "license_url": "https://huggingface.co/Supertone/supertonic-3/blob/3cadd1ee6394adea1bd021217a0e650ede09a323/LICENSE",
+    "model_card_url": "https://huggingface.co/Supertone/supertonic-3",
+    "weights_license": "BigScience Open RAIL-M",
+    "sample_code_license": "MIT",
+    "hosted_saas_classification": "CONDITIONAL_DISTRIBUTION_SECTIONS_1G_AND_4",
+    "commercial_use_inherently_forbidden": false
+  },
+  "scope": {
+    "dev_test_only": true,
+    "owner_voice_cloning": false,
+    "third_party_tts_enabled": false,
+    "synthetic_speech_published": false,
+    "production_changes": false
+  },
+  "requirements": [
+    {
+      "id": "SERVICE_TERMS_RESTRICTIONS",
+      "clause": "4(a),5,Attachment A",
+      "reason": "Enforce restricted use terms for third-party model/service users",
+      "status": "PENDING",
+      "evidence": null
+    },
+    {
+      "id": "LICENSE_COPY",
+      "clause": "4(b)",
+      "reason": "Provide model license to relevant third-party recipients",
+      "status": "PENDING",
+      "evidence": null
+    },
+    {
+      "id": "MODEL_ATTRIBUTION_NOTICES",
+      "clause": "4(d)",
+      "reason": "Retain relevant copyright, patent, trademark and attribution notices",
+      "status": "PENDING",
+      "evidence": null
+    },
+    {
+      "id": "MODIFICATION_NOTICE",
+      "clause": "4(c)",
+      "reason": "Declare prominent notices if original model files are modified",
+      "status": "PENDING",
+      "evidence": null
+    },
+    {
+      "id": "AI_AUDIO_DISCLOSURE",
+      "clause": "Attachment A(e)",
+      "reason": "Intelligible express disclosure when AI-generated speech appears in a real user-facing context",
+      "status": "PENDING",
+      "evidence": null
+    },
+    {
+      "id": "CONSENT_NONIMPERSONATION",
+      "clause": "Attachment A(g)",
+      "reason": "No impersonation of real people without consent; generic voice does not prove owner likeness",
+      "status": "PENDING",
+      "evidence": null
+    },
+    {
+      "id": "BOUNDING_ORDERS",
+      "clause": "Attachment A(h)",
+      "reason": "Avoid fully automated decisions creating binding legal obligations without appropriate review",
+      "status": "PENDING",
+      "evidence": null
+    },
+    {
+      "id": "PRIVACY_AND_PII",
+      "clause": "Attachment A(d) and applicable law",
+      "reason": "Do not generate harmful personal information; protect customer personal data",
+      "status": "PENDING",
+      "evidence": null
+    },
+    {
+      "id": "NONMISLEADING_BRAND",
+      "clause": "8",
+      "reason": "No implied Supertone endorsement or brand misuse",
+      "status": "PENDING",
+      "evidence": null
+    },
+    {
+      "id": "JURISDICTION_REVIEW",
+      "clause": "Applicable local law",
+      "reason": "Separate South Korean commercial/synthetic media rules require independent current review",
+      "status": "PENDING",
+      "evidence": null
+    }
+  ],
+  "independent_signoff": {
+    "legal_reviewer_approval": false,
+    "native_vi_review_completed": false,
+    "native_ko_review_completed": false,
+    "authorized_owner_sample_or_persona_consent": false,
+    "customer_service_terms_approved": false,
+    "customer_outreach_approved": false,
+    "commercial_distribution_authorized": false,
+    "production_or_broadcast_authorized": false
+  },
+  "conclusion": "NOT_LICENSE_CLEARED_FOR_HONEY_COMMERCIAL_OR_LIVE_USE"
+}
