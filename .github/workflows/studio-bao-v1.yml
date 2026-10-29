@@ -58,7 +58,8 @@ jobs:
           retention-days: 2
 
   windows-offline-tts-capability-probe:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # Previous English/VI feasibility proof is recorded in checkpoint; skip unrelated KO-only commits.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 6
     steps:
@@ -102,7 +103,8 @@ jobs:
           retention-days: 2
 
   windows-vi-offline-synthesis-research:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # Previous English/VI feasibility proof is recorded in checkpoint; skip unrelated KO-only commits.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 9
     steps:
@@ -133,5 +135,40 @@ jobs:
         with:
           name: studio-bao-vi-offline-synthesis-research-report
           path: ${{ runner.temp }}/studio-bao-vi-speech/vi-synthesis-probe.json
+          if-no-files-found: error
+          retention-days: 2
+
+  windows-ko-offline-synthesis-research:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 9
+    steps:
+      - name: Checkout exact Studio SHA with read-only token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Hash-pinned official eSpeak NG Windows package and isolated Korean demo
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'KO_RESEARCH_SHA_MISMATCH'}
+          & ./studio_bao_v1/voice/ko_synthesis_probe.ps1 -OutputDir "${{ runner.temp }}/studio-bao-ko-speech"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Verify Korean WAV via independent Node byte-level checks and delete WAV
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --check studio_bao_v1/voice/ko_wav_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/ko_wav_check.js "${{ runner.temp }}/studio-bao-ko-speech"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Remove-Item -LiteralPath "${{ runner.temp }}/studio-bao-ko-speech/ko-research-speech.wav" -Force
+      - name: Upload only metadata, never installer, WAV or executable
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: studio-bao-ko-offline-research-report
+          path: ${{ runner.temp }}/studio-bao-ko-speech/ko-offline-synthesis-probe.json
           if-no-files-found: error
           retention-days: 2
