@@ -316,8 +316,10 @@ class DurableReplayLedger:
             db.close()
 
     def acknowledge_publication(self, task_id: str, receipt: bytes,
-                                verifier: PublicationVerifier) -> TaskRecord:
+                                verifier: PublicationVerifier | None) -> TaskRecord:
         """Mark complete only after an external verifier authenticates matching GitHub facts."""
+        if verifier is None:
+            raise AdmissionDenied("AUTHENTICATED_PUBLICATION_RECEIPT_REQUIRED")
         effect = verifier.verify_publication(receipt)
         if effect is None:
             raise AdmissionDenied("AUTHENTICATED_PUBLICATION_RECEIPT_REQUIRED")
