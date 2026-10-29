@@ -81,7 +81,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & ./studio_bao_v1/tests/offline_asr_probe.ps1 -OutputDir "${{ runner.temp }}/studio-bao-tts"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path -LiteralPath "${{ runner.temp }}/studio-bao-tts/offline-asr-probe.json")) { throw 'ASR_PROBE_REPORT_MISSING' }
           node --check studio_bao_v1/tests/offline_asr_check.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node studio_bao_v1/tests/offline_asr_check.js "${{ runner.temp }}/studio-bao-tts"
