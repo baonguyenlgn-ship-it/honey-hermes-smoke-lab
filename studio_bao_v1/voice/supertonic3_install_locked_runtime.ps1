@@ -52,7 +52,13 @@ try{
   if($hash -ne $expected[$name].sha256){throw ('WHEEL_SHA256_MISMATCH_'+$name)}
   $report.verified_wheels+=@([ordered]@{name=$name;version=$version;sha256=$hash;bytes=$size})
  }
- if(@($report.verified_wheels|Select-Object -ExpandProperty name -Unique).Count -ne 10){throw 'WHEEL_DUPLICATE'}
+ $seen=@{}
+ foreach($item in $report.verified_wheels){
+  $label=[string]$item['name']
+  if($seen.ContainsKey($label)){throw ('WHEEL_DUPLICATE_'+$label)}
+  $seen[$label]=$true
+ }
+ if($seen.Count -ne 10){throw 'WHEEL_PACKAGE_COUNT_INCOMPLETE'}
  $report.wheel_count=$report.verified_wheels.Count
  $report.total_wheel_bytes=$total
  & python -m venv $venv
