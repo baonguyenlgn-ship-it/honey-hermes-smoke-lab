@@ -4,6 +4,8 @@ const PRODUCTS = Object.freeze(["mango","coconut","pomelo"]);
 const LANGS = Object.freeze(["vi","ko","en","zh"]);
 const COPY = Object.freeze({
  vi:{
+  labels:{"stageHeading":"Người dẫn kỹ thuật số","productsHeading":"Sản phẩm giới thiệu","scriptHeading":"Lời thoại giới thiệu","commentsHeading":"Bình luận mô phỏng","timeline":"KỊCH BẢN DEMO","productNote":"DỮ LIỆU GIẢ LẬP","transport":"CHỈ MÔ PHỎNG","draftStatus":"BẢN NHÁP"},
+  subtitles:{"mango":"Xoài Việt Nam — vui lòng xác nhận loại và ngày giao.","coconut":"Dừa tươi Việt Nam — xác nhận tình trạng và lịch giao.","pomelo":"Bưởi Việt Nam — xác nhận quy cách trước khi đặt."},
   notice:"Bản dựng giao diện nội bộ. Không phát sóng, không gửi tin nhắn hoặc tạo đơn hàng thật.",
   language:"NGÔN NGỮ",stage:"CHƯA PHÁT SÓNG",playing:"ĐANG MÔ PHỎNG",
   kicker:"NÔNG SẢN VIỆT · HÀN QUỐC",avatar:"Vị trí nhân vật · Chờ hình ảnh được phê duyệt",
@@ -18,6 +20,8 @@ const COPY = Object.freeze({
   footer:"KHÔNG LIVE · KHÔNG TẠO ĐƠN · KHÔNG KẾT NỐI NGOÀI"
  },
  ko:{
+  labels:{"stageHeading":"디지털 진행자","productsHeading":"상품 소개","scriptHeading":"진행 대본","commentsHeading":"댓글 시뮬레이터","timeline":"시연 스토리보드","productNote":"모의 상품 데이터","transport":"시뮬레이션 전용","draftStatus":"초안"},
+  subtitles:{"mango":"베트남 망고 — 품종과 배송일을 확인해 주세요.","coconut":"베트남 코코넛 — 재고와 배송일은 확인이 필요합니다.","pomelo":"베트남 포멜로 — 규격을 확인해 주세요."},
   notice:"내부 개발용 화면입니다. 실제 방송, 메시지 발송, 주문 생성은 하지 않습니다.",
   language:"언어",stage:"방송 중 아님",playing:"시뮬레이션 중",
   kicker:"베트남 농산물 · 한국",avatar:"진행자 자리 · 승인된 이미지 미연결",
@@ -32,6 +36,8 @@ const COPY = Object.freeze({
   footer:"실제 방송 없음 · 주문 생성 없음 · 외부 연결 없음"
  },
  en:{
+  labels:{"stageHeading":"Digital presenter","productsHeading":"Product spotlight","scriptHeading":"Talking points","commentsHeading":"Comment simulator","timeline":"DEMO STORYBOARD","productNote":"MOCK PRODUCT DATA","transport":"SIMULATION ONLY","draftStatus":"DRAFT"},
+  subtitles:{"mango":"Vietnamese mango — confirm the variety and delivery date.","coconut":"Fresh coconut — confirm availability and delivery.","pomelo":"Vietnamese pomelo — confirm grading before ordering."},
   notice:"Internal development preview. No live broadcast, outbound messages or real orders.",
   language:"LANGUAGE",stage:"NOT LIVE",playing:"SIMULATING",
   kicker:"VIETNAMESE PRODUCE · KOREA",avatar:"Presenter placeholder · Approved image not connected",
@@ -46,6 +52,8 @@ const COPY = Object.freeze({
   footer:"NO LIVE · NO ORDER WRITES · NO EXTERNAL CONNECTION"
  },
  zh:{
+  labels:{"stageHeading":"数字主播","productsHeading":"商品展示","scriptHeading":"讲解文案","commentsHeading":"评论模拟器","timeline":"演示分镜","productNote":"模拟商品数据","transport":"仅供模拟","draftStatus":"草稿"},
+  subtitles:{"mango":"越南芒果 — 请先确认品种和配送日期。","coconut":"越南椰子 — 请确认库存和配送安排。","pomelo":"越南柚子 — 请先确认规格。"},
   notice:"仅供内部开发预览。不直播、不发送消息、不生成真实订单。",
   language:"语言",stage:"未开播",playing:"模拟中",
   kicker:"越南农产品 · 韩国",avatar:"主播占位 · 尚未接入已批准形象",
@@ -75,7 +83,7 @@ function transition(state,action){
 }
 function viewModel(state){
  const t=COPY[state.language]||COPY.vi;
- return {language:state.language,status:state.playing?t.playing:t.stage,playText:state.playing?t.pause:t.play,product:t.products[state.product],script:t.scripts[state.product],replyText:state.replied?t.replyText:"—",draftCount:state.draftCount,copy:t};
+ return {language:state.language,status:state.playing?t.playing:t.stage,playText:state.playing?t.pause:t.play,product:t.products[state.product],script:t.scripts[state.product],subtitle:state.playing?t.subtitles[state.product]:t.subtitle,replyText:state.replied?t.replyText:"—",draftCount:state.draftCount,copy:t};
 }
 function mount(doc){
  let state=initialState();
@@ -86,9 +94,10 @@ function mount(doc){
   doc.documentElement.lang=state.language==="zh"?"zh":state.language;
   set("notice-copy",t.notice);set("lang-caption",t.language);
   set("stage-status",m.status);set("scene-kicker",t.kicker);set("avatar-disclaimer",t.avatar);
-  set("subtitle",t.subtitle);set("play-copy",m.playText);
+  set("subtitle",m.subtitle);set("play-copy",m.playText);
+  for(const [id,key] of [["stage-heading","stageHeading"],["products-heading","productsHeading"],["script-heading","scriptHeading"],["comments-heading","commentsHeading"],["timeline-caption","timeline"],["product-note","productNote"],["transport-note","transport"]])set(id,t.labels[key]);
   set("p-mango",t.products.mango);set("p-coconut",t.products.coconut);set("p-pomelo",t.products.pomelo);
-  set("script-help",t.scriptHelp);set("script-content",m.script);set("script-state","DRAFT · "+state.language.toUpperCase());
+  set("script-help",t.scriptHelp);set("script-content",m.script);set("script-state",t.labels.draftStatus+" · "+state.language.toUpperCase());
   set("comment-one",t.comment1);set("comment-two",t.comment2);set("reply-copy",t.reply);
   set("reply-label",t.replyLabel);set("reply-content",m.replyText);
   set("intent-heading",t.intentHeading);set("intent-copy",t.intent);
