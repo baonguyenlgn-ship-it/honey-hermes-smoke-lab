@@ -1,8 +1,9 @@
 """Honey isolated 5-request concurrency feasibility. No audio files, no owner impersonation."""
-import concurrent.futures, ctypes, hashlib, importlib.metadata, json, os, sys, time
+import concurrent.futures, hashlib, importlib.metadata, json, os, sys, time
 from pathlib import Path
 import numpy as np
 from st3_helper_pinned import load_text_to_speech, load_voice_style
+from win_process_memory import working_memory
 
 assert sys.platform == "win32", "WINDOWS_ONLY"
 model=Path(sys.argv[1]).resolve()
@@ -15,19 +16,6 @@ texts=[
  ("ko","상품 정보는 주문 전에 확인해 주세요."),
  ("vi","Vui lòng xác nhận thời gian giao hàng trước khi đặt mua.")
 ]
-class PMC(ctypes.Structure):
-    _fields_=[("cb",ctypes.c_ulong),("PageFaultCount",ctypes.c_ulong),
-              ("PeakWorkingSetSize",ctypes.c_size_t),("WorkingSetSize",ctypes.c_size_t),
-              ("QuotaPeakPagedPoolUsage",ctypes.c_size_t),("QuotaPagedPoolUsage",ctypes.c_size_t),
-              ("QuotaPeakNonPagedPoolUsage",ctypes.c_size_t),("QuotaNonPagedPoolUsage",ctypes.c_size_t),
-              ("PagefileUsage",ctypes.c_size_t),("PeakPagefileUsage",ctypes.c_size_t)]
-def working_memory():
-    v=PMC();v.cb=ctypes.sizeof(v)
-    ok=ctypes.windll.psapi.GetProcessMemoryInfo(ctypes.windll.kernel32.GetCurrentProcess(),
-                                                 ctypes.byref(v), v.cb)
-    if not ok: raise OSError("GetProcessMemoryInfo failed")
-    return {"working_set_bytes":int(v.WorkingSetSize),"peak_working_set_bytes":int(v.PeakWorkingSetSize),
-            "pagefile_bytes":int(v.PagefileUsage)}
 start=time.perf_counter()
 before=working_memory()
 tts=load_text_to_speech(str(model/"onnx"),use_gpu=False)

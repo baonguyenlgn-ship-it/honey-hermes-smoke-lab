@@ -265,6 +265,12 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+      - name: Preflight native Windows 64-bit process-memory ABI before downloading model
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python studio_bao_v1/voice/win_process_memory.py
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
       - name: Pin all official ONNX digests and measure five concurrent M1 CPU requests
         shell: pwsh
         run: |
