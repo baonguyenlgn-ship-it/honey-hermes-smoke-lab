@@ -1,0 +1,27 @@
+name: Hermes CLI smoke
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  hermes-cli-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Install pinned Hermes source and verify CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_sha="bf0203a794a07aac3ff764972ab9087baa4e4f4e"
+          source_dir="$RUNNER_TEMP/hermes-agent"
+          git init "$source_dir"
+          git -C "$source_dir" remote add origin https://github.com/NousResearch/hermes-agent.git
+          git -C "$source_dir" fetch --depth 1 origin v0.22.5
+          git -C "$source_dir" checkout --detach FETCH_HEAD
+          actual_sha="$(git -C "$source_dir" rev-parse HEAD)"
+          test "$actual_sha" = "$expected_sha"
+          python3 -m venv "$RUNNER_TEMP/hermes-venv"
+          "$RUNNER_TEMP/hermes-venv/bin/python" -m pip install --disable-pip-version-check "$source_dir"
+          "$RUNNER_TEMP/hermes-venv/bin/hermes" --help
+          echo "Hermes CLI smoke: PASS"
+          echo "upstream_commit=$actual_sha"
