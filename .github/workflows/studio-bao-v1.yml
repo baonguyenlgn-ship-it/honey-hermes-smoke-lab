@@ -76,11 +76,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node studio_bao_v1/tests/offline_tts_check.js "${{ runner.temp }}/studio-bao-tts"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Independent offline Windows dictation feasibility probe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./studio_bao_v1/tests/offline_asr_probe.ps1 -OutputDir "${{ runner.temp }}/studio-bao-tts"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check studio_bao_v1/tests/offline_asr_check.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node studio_bao_v1/tests/offline_asr_check.js "${{ runner.temp }}/studio-bao-tts"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Publish metadata-only capability report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: studio-bao-v1-offline-tts-capability-report
-          path: ${{ runner.temp }}/studio-bao-tts/offline-tts-probe.json
+          path: ${{ runner.temp }}/studio-bao-tts/*-probe.json
           if-no-files-found: ignore
           retention-days: 2
