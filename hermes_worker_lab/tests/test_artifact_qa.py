@@ -4,7 +4,7 @@ import hashlib, tempfile, unittest
 from pathlib import Path
 from hermes_worker_lab import artifact_qa as qa
 from hermes_worker_lab.tests import test_worker_admission as fx
-from hermes_worker_lab.worker_admission import DurableReplayLedger, WorkerAdmissionAdapter
+from hermes_worker_lab.worker_admission import AdmissionDenied, DurableReplayLedger, WorkerAdmissionAdapter
 
 DATA=fx.ARTIFACT_BYTES
 BRANCH=fx.BRANCH
@@ -89,9 +89,14 @@ class ArtifactQaTests(unittest.TestCase):
         req,v=request_and_verifier()
         original=v.verify_artifact(b"fake-artifact")
         v.values[("artifact",b"fake-artifact")]=replace(original,producer_subject="worker:forged")
-        with self.assertRaises(Exception):
+        with self.assertRaisesRegex(AdmissionDenied,"ARTIFACT_PROVENANCE_MISMATCH"):
             qa.validate_authenticated_artifact(manifest(),DATA,adapter=self.adapter(v),request=req,
-              expected_branch=BRANCH,expected_source_sha=fx.SOURCE)
+              expected_branch=BRANCH,expected_source_sha=fx.SOURCE,now=fx.NOW)
+    def test_single_backslash_in_path_is_denied(self):
+        unsafe=r"hermes_worker_lab\artifacts\forged.py"
+        with self.assertRaisesRegex(qa.ArtifactQaError,"PATH_SET_INVALID"):
+            qa.validate_manifest_bytes(manifest(paths=[qa.ARTIFACT_PATH,unsafe]),DATA,expected_branch=BRANCH)
+
     def test_wrong_repo_hermes_pin_and_manifest_shape_denied(self):
         for m,code in [(manifest(repository="other/repo"),"REPOSITORY_SCOPE_MISMATCH"),
            (manifest(hermes_version="0.22.4"),"HERMES_VERSION_MISMATCH"),

@@ -9,9 +9,9 @@ from __future__ import annotations
 import argparse, hashlib, json, os, py_compile, re, stat, sys, tempfile
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Mapping
-from hermes_worker_lab.worker_admission import AdmissionRequest, WorkerAdmissionAdapter
+from hermes_worker_lab.worker_admission import AdmissionRequest, WorkerAdmissionAdapter, _valid_path
 
 REPOSITORY = "baonguyenlgn-ship-it/honey-hermes-smoke-lab"
 HERMES_VERSION = "0.22.5"
@@ -40,9 +40,8 @@ class ArtifactQaResult:
     status: str = "BYTES_MANIFEST_SYNTAX_PASS_PROVENANCE_UNVERIFIED"
 
 def _safe_path(value: object) -> bool:
-    if not isinstance(value,str) or "\\\\" in value: return False
-    p=PurePosixPath(value)
-    return not p.is_absolute() and str(p)==value and all(x not in {"",".",".."} for x in value.split("/"))
+    # Reuse worker_admission's canonical path rules, including single backslashes.
+    return isinstance(value, str) and _valid_path(value)
 
 def _pairs(pairs: list[tuple[str,Any]]) -> dict[str,Any]:
     out={}
