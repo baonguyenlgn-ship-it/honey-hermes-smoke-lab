@@ -173,6 +173,7 @@ function mount(doc){
   audioPlayer.hidden=true;
   if(playbackUrl){URL.revokeObjectURL(playbackUrl);playbackUrl=null;}
   set("local-audio-caption","—");set("local-audio-clock","00:00 / 00:00");
+  if(typeof CustomEvent==="function"&&typeof doc.dispatchEvent==="function")doc.dispatchEvent(new CustomEvent("honey:local-wav-cleared"));
  };
  const updatePlayback=()=>{
   if(!verifiedAudio||!playbackUrl)return;
@@ -231,6 +232,8 @@ function mount(doc){
    verifiedAudio=valid;audioStatus={kind:"valid"};
    playbackUrl=URL.createObjectURL(new Blob([bytes],{type:"audio/wav"}));
    audioPlayer.src=playbackUrl;audioPlayer.hidden=false;audioPlayer.load();
+   if(typeof CustomEvent==="function"&&typeof doc.dispatchEvent==="function")
+    doc.dispatchEvent(new CustomEvent("honey:verified-local-wav",{detail:{verified:true,wavBytes:bytes,durationMs:valid.audio.durationMs}}));
    updatePlayback();
   }catch(err){
    if(generation!==importGeneration)return;

@@ -115,3 +115,13 @@ footer{display:flex;gap:10px;justify-content:space-between;color:#647b88;font-si
 .audio-preview-current{display:flex;flex-direction:column;gap:6px;border-top:1px solid #30444e;padding-top:9px}
 #local-audio-clock{font-size:11px;color:#90abb2;font-variant-numeric:tabular-nums}
 #local-audio-caption{font-size:12px;line-height:1.5;color:#e6d8be;overflow-wrap:anywhere}
+
+/* DEV only: audio-energy reactive bar on conceptual silhouette; no true visemes. */
+.avatar-mouth{position:absolute;z-index:3;left:50%;top:36%;height:2.2%;width:10%;
+ background:#49322f;border-radius:2px 2px 65% 65%;border-top:1px solid #8b6860;
+ transform-origin:50% 28%;transform:translateX(-50%) scaleY(.22);
+ box-shadow:0 0 0 1px #bc988360;pointer-events:none}
+.avatar-mouth[hidden]{display:none}
+.mouth-preview-caption{display:block;font-size:10px;letter-spacing:.03em;
+ color:#e6cba6;margin:7px 0 2px;overflow-wrap:anywhere}
+@media (prefers-reduced-motion:reduce){.avatar-mouth{transition:none}}

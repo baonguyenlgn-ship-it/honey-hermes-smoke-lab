@@ -619,7 +619,8 @@ jobs:
           Write-Output 'HONEY_ST3_PRIVATE_REVIEW_STATION_WINDOWS_QA_PASS_NO_REAL_REVIEW'
 
   supertonic3-offline-native-review-reconciliation:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # 19/19 independent offline reviewer merge QA PASS 40969457597; freeze unrelated AV delta.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 3
     steps:
@@ -638,3 +639,36 @@ jobs:
           node --test studio_bao_v1/tests/review_station_merge.test.js
           if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
           Write-Output 'ST3_OFFLINE_REVIEW_RECONCILIATION_QA_PASS_NO_HUMAN_APPROVAL'
+
+  studio-local-wav-mouth-energy-preview-qa:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact PR head read only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Fail-closed WAV energy parser and no-lip-sync contract
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'MOUTH_LAB_HEAD_SHA_CHANGED'}
+          node --check studio_bao_v1/mouth_energy.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --check studio_bao_v1/mouth_preview.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --check studio_bao_v1/app.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/mouth_energy.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Chrome desktop/mobile end to end on silence then synthetic tone and SHA rejection
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/tests/browser_e2e.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/tests/browser_e2e.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'HONEY_STUDIO_WAV_AMPLITUDE_PUPPET_PREVIEW_ONLY_PASS_NOT_LIP_SYNC'

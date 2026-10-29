@@ -31,7 +31,7 @@
             <div class="stage-canvas">
               <div class="stage-orb orb-one"></div><div class="stage-orb orb-two"></div><div class="scene-grid"></div>
               <div class="scene-head"><span>HONEY <b>STUDIO</b></span><span>KR ◇ VN</span></div>
-              <div class="avatar" role="img" aria-label="Approved Bảo visual not connected; conceptual silhouette only"><div class="avatar-halo"></div><div class="avatar-head"></div><div class="avatar-neck"></div><div class="avatar-jacket"></div></div>
+              <div class="avatar" role="img" aria-label="Approved Bảo visual not connected; conceptual silhouette only"><div class="avatar-halo"></div><div class="avatar-head"></div><div class="avatar-mouth" id="avatar-mouth" hidden aria-hidden="true"></div><div class="avatar-neck"></div><div class="avatar-jacket"></div></div>
               <div class="scene-copy"><span id="scene-kicker">VIETNAMESE PRODUCE · KOREA</span><h3>BẢO <span>V1</span></h3><p id="avatar-disclaimer">Vị trí nhân vật · Chờ hình ảnh được phê duyệt</p></div>
               <div class="caption-overlay" aria-live="polite"><span class="wave-dots">●●●</span><span id="subtitle">Chào mừng đến Honey Trái Cây Việt - Hàn!</span></div>
               <div class="scene-corner left"></div><div class="scene-corner right"></div>
@@ -66,6 +66,7 @@
               <p id="audio-verify-status" role="status" aria-live="polite">Chưa có WAV được xác minh</p>
               <div class="audio-preview" aria-label="Local verified WAV playback only">
                 <strong id="audio-player-note">NO VERIFIED AUDIO PLAYBACK</strong>
+                <span class="mouth-preview-caption" id="mouth-preview-status" role="status">KHẨU HÌNH: CHƯA CÓ WAV · CHƯA LIP-SYNC</span>
                 <audio id="local-audio-player" preload="metadata" controls hidden aria-label="Local WAV preview; not validated speech alignment"></audio>
                 <div class="audio-preview-current" aria-live="polite">
                   <span id="local-audio-clock">00:00 / 00:00</span>
@@ -105,6 +106,8 @@
   </div>
   <script src="./subtitles.js"></script>
   <script src="./audio_timing.js"></script>
+  <script src="./mouth_energy.js"></script>
+  <script src="./mouth_preview.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

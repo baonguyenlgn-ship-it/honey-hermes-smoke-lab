@@ -137,6 +137,8 @@ async function main(){
  pcm.write("fmt ",12);pcm.writeUInt32LE(16,16);pcm.writeUInt16LE(1,20);
  pcm.writeUInt16LE(1,22);pcm.writeUInt32LE(8000,24);pcm.writeUInt32LE(16000,28);
  pcm.writeUInt16LE(2,32);pcm.writeUInt16LE(16,34);pcm.write("data",36);pcm.writeUInt32LE(16000,40);
+ // First 500ms silence, last 500ms synthetic pure tone. This is NOT a human voice.
+ for(let i=4000;i<8000;i++)pcm.writeInt16LE(Math.round(15000*Math.sin(2*Math.PI*220*i/8000)),44+i*2);
  const sha=createHash("sha256").update(pcm).digest("hex");
  const captionsForWav=await evaluate("STORYBOARD.vi.mango.map(x=>x.subtitle)");
  const manifest={version:1,method:"manual_unverified_alignment",language:"vi",product:"mango",
@@ -165,8 +167,14 @@ async function main(){
  assert.equal(await evaluate("document.getElementById('local-audio-player').src.startsWith('blob:')"),true);
  await evaluate("(()=>{const a=document.getElementById('local-audio-player');a.currentTime=0.45;a.dispatchEvent(new Event('timeupdate'));return true})()");
  await until("document.getElementById('local-audio-caption').textContent.includes('Xoài:')");
+ assert.equal(await evaluate("HoneyMouthPreview.snapshot().ready"),true);
+ assert.equal(await evaluate("HoneyMouthPreview.snapshot().actualLipSync"),false);
+ assert.equal(await evaluate("HoneyMouthPreview.snapshot().open"),0);
  await evaluate("(()=>{const a=document.getElementById('local-audio-player');a.currentTime=0.81;a.dispatchEvent(new Event('timeupdate'));return true})()");
  await until("document.getElementById('local-audio-caption').textContent.includes('택배')");
+ assert.ok(await evaluate("HoneyMouthPreview.snapshot().open")>.25,"PCM_TONE_MUST_OPEN_CONCEPTUAL_MOUTH");
+ assert.equal(await evaluate("document.getElementById('avatar-mouth').hidden"),false);
+ assert.equal(await evaluate("document.getElementById('mouth-preview-status').textContent.includes('KHÔNG PHẢI LIP-SYNC')"),true);
  await evaluate("document.getElementById('export-vtt-btn').click();true");
  const wavBoundVtt=await waitDownload("honey-bao-v1-mango-vi-wav-matched-manual-not-synced.vtt");
  assert.match(wavBoundVtt,/00:00:00.700 --> 00:00:01.000/);
@@ -175,11 +183,14 @@ async function main(){
  await until("document.getElementById('audio-verify-status').textContent.includes('WAV_SHA_MISMATCH')");
  assert.equal(await evaluate("document.getElementById('local-audio-player').hidden"),true);
  assert.equal(await evaluate("document.getElementById('local-audio-player').hasAttribute('src')"),false);
+ assert.equal(await evaluate("HoneyMouthPreview.snapshot().ready"),false);
+ assert.equal(await evaluate("HoneyMouthPreview.snapshot().open"),0);
+ assert.equal(await evaluate("document.getElementById('avatar-mouth').hidden"),true);
  assert.equal(await evaluate("document.getElementById('local-audio-caption').textContent"),"—");
  await evaluate("document.getElementById('export-srt-btn').click();true");
  const revertedSrt=await waitDownload("honey-bao-v1-mango-vi-demo.srt");
  assert.match(revertedSrt,/00:00:20,000 --> 00:00:30,000/);
- console.log("BROWSER_LOCAL_AUDIO_WAV_PLAYER_SEEK_CAPTIONS_AND_INVALID_SHA_CLEANUP_PASS_SYNTHETIC_SILENCE");
+ console.log("BROWSER_VERIFIED_WAV_PCM_ENERGY_MOUTH_SEEK_AND_INVALID_SHA_RESET_PASS_SYNTHETIC_TONE");
 
  await evaluate("(()=>{let s=document.getElementById('lang');s.value='ko';s.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
  assert.equal(await evaluate("document.getElementById('script-content').textContent.includes('망고')"),true);
