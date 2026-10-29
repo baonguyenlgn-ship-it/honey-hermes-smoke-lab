@@ -135,7 +135,12 @@ async function main(){
   await until("document.getElementById('play-btn')?.getAttribute('aria-pressed') === 'false'");
   const x=await evaluate("({viewport:document.documentElement.clientWidth,content:document.documentElement.scrollWidth,stage:document.querySelector('.stage-canvas').getBoundingClientRect().width})");
   assert.ok(x.content<=x.viewport+1,"MOBILE_HORIZONTAL_OVERFLOW_"+width+": "+JSON.stringify(x));
-  mobileSizes.push({width,...x});
+  const visual=await evaluate("(()=>{const rail=document.querySelector('.rail');const btn=document.getElementById('play-btn');const heading=document.getElementById('stage-heading');return {rail:getComputedStyle(rail).display,buttonWhiteSpace:getComputedStyle(btn).whiteSpace,buttonHeight:btn.getBoundingClientRect().height,headingHeight:heading.getBoundingClientRect().height}})()");
+  assert.equal(visual.rail,"none","DECORATIVE_MOBILE_RAIL_STILL_VISIBLE_"+width);
+  assert.equal(visual.buttonWhiteSpace,"nowrap","MOBILE_PRIMARY_ACTION_WRAPS_"+width);
+  assert.ok(visual.buttonHeight<=55,"MOBILE_PRIMARY_ACTION_TOO_TALL_"+width+": "+JSON.stringify(visual));
+  assert.ok(visual.headingHeight<=30,"MOBILE_STAGE_HEADING_WRAPS_"+width+": "+JSON.stringify(visual));
+  mobileSizes.push({width,...x,visual});
   if(width===390)await shot("mobile-390");
  }
  assert.deepEqual(outbound,[],"UNEXPECTED_EXTERNAL_REQUESTS");
