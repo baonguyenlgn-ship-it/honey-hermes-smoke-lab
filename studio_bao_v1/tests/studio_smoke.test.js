@@ -302,3 +302,15 @@ test("manual-bound caption export must never silently advertise audio/video alig
  assert.ok(js.includes("AUDIO_UI"));
  assert.equal(Object.keys(studio.STORYBOARD).length,4);
 });
+
+test("local verified WAV playback uses only blob URL, native media and manual cues",()=>{
+ assert.match(html,/id="local-audio-player"/);
+ assert.match(html,/preload="metadata" controls hidden/);
+ assert.match(html,/id="local-audio-caption"/);
+ assert.match(html,/NOT SPEECH-SYNCED/);
+ assert.ok(js.includes("URL.createObjectURL(new Blob([bytes]"));
+ assert.ok(js.includes("URL.revokeObjectURL(playbackUrl)"));
+ assert.ok(js.includes('audioPlayer.addEventListener("loadedmetadata"'));
+ assert.ok(js.includes("resetPlayback();verifiedAudio=null"));
+ assert.ok(!js.includes("audioPlayer.autoplay"));
+});

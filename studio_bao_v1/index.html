@@ -64,6 +64,14 @@
               </div>
               <button type="button" id="verify-audio-btn" class="audio-verify-button"><span id="audio-verify-copy">Kiểm tra WAV + JSON</span></button>
               <p id="audio-verify-status" role="status" aria-live="polite">Chưa có WAV được xác minh</p>
+              <div class="audio-preview" aria-label="Local verified WAV playback only">
+                <strong id="audio-player-note">NO VERIFIED AUDIO PLAYBACK</strong>
+                <audio id="local-audio-player" preload="metadata" controls hidden aria-label="Local WAV preview; not validated speech alignment"></audio>
+                <div class="audio-preview-current" aria-live="polite">
+                  <span id="local-audio-clock">00:00 / 00:00</span>
+                  <span id="local-audio-caption">—</span>
+                </div>
+              </div>
             </div>
           </section>
           <section class="products-panel" aria-labelledby="products-heading">

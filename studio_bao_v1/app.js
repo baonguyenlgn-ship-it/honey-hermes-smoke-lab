@@ -124,6 +124,7 @@ function viewModel(state){
 function mount(doc){
  let state=initialState();
  let verifiedAudio=null;
+ let playbackUrl=null;
  let audioStatus={kind:"idle"};
  let importGeneration=0;
  const get=id=>doc.getElementById(id);
@@ -144,6 +145,7 @@ function mount(doc){
     audioStatus.kind==="busy"?audioLabel.working:
     audioStatus.kind==="invalid"?audioLabel.invalid+audioStatus.reason:audioLabel.idle;
   set("audio-verify-status",msg);
+  set("audio-player-note",audioStatus.kind==="valid"?"WAV LOCAL · MANUAL CUES · NOT SPEECH-SYNCED":"NO VERIFIED AUDIO PLAYBACK");
   const exportText=EXPORT_UI[state.language];
   set("export-title",exportText.title);set("export-note",exportText.desc);
   set("srt-label",exportText.srt);set("vtt-label",exportText.vtt);
@@ -165,9 +167,37 @@ function mount(doc){
    b.classList.toggle("active",yes);b.setAttribute("aria-pressed",String(yes));
   }
  }
+ const audioPlayer=get("local-audio-player");
+ const resetPlayback=()=>{
+  audioPlayer.pause(); audioPlayer.removeAttribute("src"); audioPlayer.load();
+  audioPlayer.hidden=true;
+  if(playbackUrl){URL.revokeObjectURL(playbackUrl);playbackUrl=null;}
+  set("local-audio-caption","—");set("local-audio-clock","00:00 / 00:00");
+ };
+ const updatePlayback=()=>{
+  if(!verifiedAudio||!playbackUrl)return;
+  const ms=Math.max(0,Math.round(audioPlayer.currentTime*1000));
+  const cue=verifiedAudio.cues.find(c=>ms>=c.startMs&&ms<c.endMs)||
+    (ms>=verifiedAudio.audio.durationMs?verifiedAudio.cues[verifiedAudio.cues.length-1]:null);
+  set("local-audio-caption",cue?cue.text:"—");
+  const stamp=n=>String(Math.floor(n/60)).padStart(2,"0")+":"+String(Math.floor(n%60)).padStart(2,"0");
+  set("local-audio-clock",stamp(ms/1000)+" / "+stamp(verifiedAudio.audio.durationMs/1000));
+ };
+ for(const name of ["timeupdate","seeked","play","pause","ended"])audioPlayer.addEventListener(name,updatePlayback);
+ audioPlayer.addEventListener("loadedmetadata",()=>{
+  if(!verifiedAudio||!playbackUrl)return;
+  if(!Number.isFinite(audioPlayer.duration)||Math.abs(audioPlayer.duration*1000-verifiedAudio.audio.durationMs)>80){
+   resetPlayback();verifiedAudio=null;audioStatus={kind:"invalid",reason:"DECODED_WAV_DURATION_MISMATCH"};render();return;
+  }
+  updatePlayback();
+ });
+ audioPlayer.addEventListener("error",()=>{
+  if(!playbackUrl)return;
+  resetPlayback();verifiedAudio=null;audioStatus={kind:"invalid",reason:"BROWSER_AUDIO_DECODE_FAILED"};render();
+ });
  const dispatch=a=>{
   if(["LANGUAGE","PRODUCT","RESET"].includes(a.type)){
-   verifiedAudio=null; audioStatus={kind:"idle"}; importGeneration++;
+   resetPlayback();verifiedAudio=null; audioStatus={kind:"idle"}; importGeneration++;
   }
   state=transition(state,a);render();
  };
@@ -188,7 +218,7 @@ function mount(doc){
  };
  get("verify-audio-btn").addEventListener("click",async()=>{
   const generation=++importGeneration,language=state.language,product=state.product;
-  verifiedAudio=null;audioStatus={kind:"busy"};render();
+  resetPlayback();verifiedAudio=null;audioStatus={kind:"busy"};render();
   const wavInput=get("audio-wav-input"),jsonInput=get("audio-json-input");
   const wav=wavInput.files?.[0],json=jsonInput.files?.[0];
   try{
@@ -199,9 +229,12 @@ function mount(doc){
    const valid=await BaoAudioTiming.verify({wavBytes:bytes,manifest,language,product,beats:STORYBOARD[language][product]});
    if(generation!==importGeneration||state.language!==language||state.product!==product)return;
    verifiedAudio=valid;audioStatus={kind:"valid"};
+   playbackUrl=URL.createObjectURL(new Blob([bytes],{type:"audio/wav"}));
+   audioPlayer.src=playbackUrl;audioPlayer.hidden=false;audioPlayer.load();
+   updatePlayback();
   }catch(err){
    if(generation!==importGeneration)return;
-   verifiedAudio=null;audioStatus={kind:"invalid",reason:String(err?.message||"INVALID_MANIFEST").slice(0,90)};
+   resetPlayback();verifiedAudio=null;audioStatus={kind:"invalid",reason:String(err?.message||"INVALID_MANIFEST").slice(0,90)};
   }finally{
    if(generation===importGeneration){wavInput.value="";jsonInput.value="";render();}
   }

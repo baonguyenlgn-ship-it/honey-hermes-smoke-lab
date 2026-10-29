@@ -160,16 +160,26 @@ async function main(){
  await installSyntheticFiles(manifest);
  await evaluate("document.getElementById('verify-audio-btn').click();true");
  await until("document.getElementById('audio-verify-status').textContent.includes('SHA-256')");
+ assert.equal(await evaluate("document.getElementById('local-audio-player').hidden"),false);
+ await until("document.getElementById('local-audio-player').readyState >= 1");
+ assert.equal(await evaluate("document.getElementById('local-audio-player').src.startsWith('blob:')"),true);
+ await evaluate("(()=>{const a=document.getElementById('local-audio-player');a.currentTime=0.45;a.dispatchEvent(new Event('timeupdate'));return true})()");
+ await until("document.getElementById('local-audio-caption').textContent.includes('Xoài:')");
+ await evaluate("(()=>{const a=document.getElementById('local-audio-player');a.currentTime=0.81;a.dispatchEvent(new Event('timeupdate'));return true})()");
+ await until("document.getElementById('local-audio-caption').textContent.includes('택배')");
  await evaluate("document.getElementById('export-vtt-btn').click();true");
  const wavBoundVtt=await waitDownload("honey-bao-v1-mango-vi-wav-matched-manual-not-synced.vtt");
  assert.match(wavBoundVtt,/00:00:00.700 --> 00:00:01.000/);
  await installSyntheticFiles({...manifest,sha256:"0".repeat(64)});
  await evaluate("document.getElementById('verify-audio-btn').click();true");
  await until("document.getElementById('audio-verify-status').textContent.includes('WAV_SHA_MISMATCH')");
+ assert.equal(await evaluate("document.getElementById('local-audio-player').hidden"),true);
+ assert.equal(await evaluate("document.getElementById('local-audio-player').hasAttribute('src')"),false);
+ assert.equal(await evaluate("document.getElementById('local-audio-caption').textContent"),"—");
  await evaluate("document.getElementById('export-srt-btn').click();true");
  const revertedSrt=await waitDownload("honey-bao-v1-mango-vi-demo.srt");
  assert.match(revertedSrt,/00:00:20,000 --> 00:00:30,000/);
- console.log("BROWSER_LOCAL_AUDIO_WAV_SHA_VERIFIED_SYNTHETIC_SILENCE_ONLY");
+ console.log("BROWSER_LOCAL_AUDIO_WAV_PLAYER_SEEK_CAPTIONS_AND_INVALID_SHA_CLEANUP_PASS_SYNTHETIC_SILENCE");
 
  await evaluate("(()=>{let s=document.getElementById('lang');s.value='ko';s.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
  assert.equal(await evaluate("document.getElementById('script-content').textContent.includes('망고')"),true);
