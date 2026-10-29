@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Out)
+param([Parameter(Mandatory=$true)][string]$Out,[ValidateSet('Wav','Benchmark')][string]$Mode='Wav')
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
@@ -37,11 +37,19 @@ try{
  python -m pip install --disable-pip-version-check --no-input --only-binary=:all: onnxruntime==1.23.1 numpy==2.2.6
  if($LASTEXITCODE -ne 0){throw ('PINNED_RUNTIME_INSTALL_EXIT_'+$LASTEXITCODE)}
  $r.status='RUNTIME_READY'
- python (Join-Path $PSScriptRoot 'supertonic3_m1_cpu.py') $root $Out
- if($LASTEXITCODE -ne 0){throw ('CPU_INFERENCE_EXIT_'+$LASTEXITCODE)}
- if(-not (Test-Path -LiteralPath (Join-Path $Out 'inference.json'))){throw 'INFERENCE_REPORT_MISSING'}
- $r.status='INFERENCE_EMITTED_NEEDS_INDEPENDENT_QA'
- $r.wav_generated=$true
+ if($Mode -eq 'Benchmark'){
+   python (Join-Path $PSScriptRoot 'supertonic3_m1_benchmark.py') $root $Out
+   if($LASTEXITCODE -ne 0){throw ('CPU_BENCHMARK_EXIT_'+$LASTEXITCODE)}
+   if(-not(Test-Path -LiteralPath (Join-Path $Out 'benchmark.json'))){throw 'BENCHMARK_REPORT_MISSING'}
+   $r.status='BENCHMARK_EMITTED_NEEDS_INDEPENDENT_QA'
+   $r.wav_generated=$false
+ } else {
+   python (Join-Path $PSScriptRoot 'supertonic3_m1_cpu.py') $root $Out
+   if($LASTEXITCODE -ne 0){throw ('CPU_INFERENCE_EXIT_'+$LASTEXITCODE)}
+   if(-not (Test-Path -LiteralPath (Join-Path $Out 'inference.json'))){throw 'INFERENCE_REPORT_MISSING'}
+   $r.status='INFERENCE_EMITTED_NEEDS_INDEPENDENT_QA'
+   $r.wav_generated=$true
+ }
 }catch{
  $problem=$_.Exception.GetType().Name+': '+$_.Exception.Message
  $r.error_type=$problem.Substring(0,[Math]::Min(220,$problem.Length))

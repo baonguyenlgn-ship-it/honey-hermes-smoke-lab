@@ -216,7 +216,8 @@ jobs:
           retention-days: 2
 
   supertonic3-m1-bilingual-cpu-lab:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # Prior real M1 VI/KO WAV proof accepted at run 40958893601. Freeze repeated synthesis.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 12
     steps:
@@ -251,5 +252,42 @@ jobs:
           path: |
             ${{ runner.temp }}/honey-st3-m1/source-report.json
             ${{ runner.temp }}/honey-st3-m1/inference.json
+          if-no-files-found: warn
+          retention-days: 2
+
+  supertonic3-m1-five-request-resource-benchmark:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout pinned PR head with read-only token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Pin all official ONNX digests and measure five concurrent M1 CPU requests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if ((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'M1_BENCH_HEAD_MISMATCH'}
+          python --version
+          ./studio_bao_v1/voice/supertonic3_m1_windows.ps1 -Mode Benchmark -Out "${{ runner.temp }}/honey-m1-bench"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Independent CPU/memory/5-request benchmark report boundary audit
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/voice/supertonic3_m1_benchmark_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_m1_benchmark_check.js "${{ runner.temp }}/honey-m1-bench"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Upload metadata only, never ONNX, WAV, or customer data
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: honey-supertonic3-five-request-cpu-metadata
+          path: |
+            ${{ runner.temp }}/honey-m1-bench/source-report.json
+            ${{ runner.temp }}/honey-m1-bench/benchmark.json
           if-no-files-found: warn
           retention-days: 2
