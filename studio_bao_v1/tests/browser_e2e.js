@@ -112,10 +112,14 @@ async function main(){
  const desktopScreenshot=await shot("desktop-1440");
  await evaluate("(()=>{let s=document.getElementById('lang');s.value='ko';s.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
  assert.equal(await evaluate("document.getElementById('script-content').textContent.includes('망고')"),true);
+ assert.equal(await evaluate("document.getElementById('stage-heading').textContent"),"디지털 진행자");
+ assert.equal(await evaluate("document.getElementById('comments-heading').textContent"),"댓글 시뮬레이터");
  await evaluate("document.getElementById('play-btn').click(); true");
+ assert.equal(await evaluate("document.getElementById('subtitle').textContent.includes('망고')"),true);
  assert.equal(await evaluate("document.getElementById('play-btn').getAttribute('aria-pressed')"),"true");
  await evaluate("document.querySelector('[data-product=coconut]').click(); true");
  assert.equal(await evaluate("document.getElementById('script-content').textContent.includes('코코넛')"),true);
+ assert.equal(await evaluate("document.getElementById('subtitle').textContent.includes('코코넛')"),true);
  await evaluate("document.getElementById('reply-btn').click(); true");
  assert.equal(await evaluate("document.getElementById('reply-content').textContent.includes('DEMO')"),true);
  await evaluate("document.getElementById('draft-btn').click(); true");
