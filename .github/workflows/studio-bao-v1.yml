@@ -337,7 +337,8 @@ jobs:
           retention-days: 2
 
   supertonic3-m1-locked-runtime-e2e:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # Prior real Windows bilingual locked-runtime proof PASS at 40963118500; freeze on seed-only delta.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 12
     steps:
@@ -389,5 +390,56 @@ jobs:
             ${{ runner.temp }}/honey-st3-venv/isolated-runtime-imports.json
             ${{ runner.temp }}/honey-st3-locked-audio/source-report.json
             ${{ runner.temp }}/honey-st3-locked-audio/inference.json
+          if-no-files-found: warn
+          retention-days: 2
+
+  supertonic3-m1-seeded-waveform-qa:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR SHA without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Fail-closed static checker boundary tests, no model transfer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'M1_SEED_QA_HEAD_MISMATCH'}
+          node --check studio_bao_v1/voice/supertonic3_seed_quality_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/supertonic3_seed_quality_guard.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Prepare isolated SHA-locked Windows CPython 3.12 runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./studio_bao_v1/voice/supertonic3_install_locked_runtime.ps1 -Out "${{ runner.temp }}/honey-st3-seed-venv"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_locked_runtime_check.js "${{ runner.temp }}/honey-st3-seed-venv"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Two matching seeds per language, four total bounded in-memory M1 syntheses
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./studio_bao_v1/voice/supertonic3_m1_windows.ps1 -Mode SeedQuality -RuntimeDir "${{ runner.temp }}/honey-st3-seed-venv" -Out "${{ runner.temp }}/honey-st3-seed-quality"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Independent seed and waveform QA, no voice files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node studio_bao_v1/voice/supertonic3_seed_quality_check.js "${{ runner.temp }}/honey-st3-seed-quality"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Upload report metadata only, never model or audio
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: honey-st3-m1-seeded-waveform-quality-metadata
+          path: |
+            ${{ runner.temp }}/honey-st3-seed-venv/locked-runtime-report.json
+            ${{ runner.temp }}/honey-st3-seed-quality/source-report.json
+            ${{ runner.temp }}/honey-st3-seed-quality/seed-quality-report.json
           if-no-files-found: warn
           retention-days: 2
