@@ -34,3 +34,19 @@ jobs:
           node --test studio_bao_v1/tests/studio_smoke.test.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Output "STUDIO_WINDOWS_QA_PASS"
+      - name: Real Windows Chrome desktop/mobile E2E and screenshots
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --check studio_bao_v1/tests/browser_e2e.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node studio_bao_v1/tests/browser_e2e.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload DEV-only desktop/mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: studio-bao-v1-windows-browser-screenshots
+          path: ${{ runner.temp }}/honey-studio-bao-v1/*.png
+          if-no-files-found: ignore
+          retention-days: 2
