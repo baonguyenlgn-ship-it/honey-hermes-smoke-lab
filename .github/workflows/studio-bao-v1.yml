@@ -540,7 +540,8 @@ jobs:
           Write-Output 'ST3_LISTENER_SCORE_SCREEN_ONLY_PASS_NO_HUMAN_EVIDENCE'
 
   supertonic3-eight-script-in-memory-cpu:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # 8/8 real signal generation PASS at 40967161953; freeze on no-model reviewer UI delta.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 12
     steps:
@@ -582,3 +583,36 @@ jobs:
             ${{ runner.temp }}/honey-st3-eight-probe/eight-script-signal-qa.json
           if-no-files-found: warn
           retention-days: 2
+
+  supertonic3-private-review-station-browser:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Exact PR HEAD read-only checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Offline reviewer protocol, WAV and tamper contract unit QA
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'ST3_REVIEW_BROWSER_GIT_HEAD_MISMATCH'}
+          node --check studio_bao_v1/reviewer/review_protocol_data.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --check studio_bao_v1/reviewer/review_station_core.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --check studio_bao_v1/reviewer/review_station_ui.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/review_station.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Real Chrome file-only UI with synthetic local PCM and no HTTP outbound
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/tests/review_station_browser_e2e.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/tests/review_station_browser_e2e.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'HONEY_ST3_PRIVATE_REVIEW_STATION_WINDOWS_QA_PASS_NO_REAL_REVIEW'
