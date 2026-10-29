@@ -94,6 +94,31 @@ class GuardSnapshot:
     captured_at: datetime
 
 
+@dataclass(frozen=True)
+class PublishedEffect:
+    """Claims extracted from an externally authenticated publish receipt."""
+
+    task_id: str
+    repository: str
+    workstream: str
+    branch: str
+    base_sha: str
+    source_sha: str
+    artifact_sha256: str
+    lease_id: str
+    commit_sha: str
+    pr_number: int
+
+
+@dataclass(frozen=True)
+class TaskRecord:
+    task_id: str
+    state: str
+    commit_sha: str | None = None
+    pr_number: int | None = None
+    receipt_sha256: str | None = None
+
+
 class EvidenceVerifier(Protocol):
     """Provider/Guard trust adapter; implementations must authenticate bytes."""
 
@@ -101,6 +126,12 @@ class EvidenceVerifier(Protocol):
     def verify_identity(self, receipt: bytes) -> IdentityClaims | None: ...
     def verify_lease(self, receipt: bytes) -> LeaseClaims | None: ...
     def verify_guard_snapshot(self, receipt: bytes) -> GuardSnapshot | None: ...
+
+
+class PublicationVerifier(Protocol):
+    """Independent verifier for a canonical external publication receipt."""
+
+    def verify_publication(self, receipt: bytes) -> PublishedEffect | None: ...
 
 
 @dataclass(frozen=True)
@@ -142,49 +173,101 @@ def _valid_path(path: str) -> bool:
 
 
 class DurableReplayLedger:
-    """Local idempotency aid for the offline contract, not a Guard nonce store."""
+    """Local recovery ledger, not a publisher or canonical Guard nonce store."""
 
     def __init__(self, database_path: str):
         self.database_path = database_path
-        with self._connect() as db:
+        db = self._connect()
+        try:
             db.execute("PRAGMA journal_mode=WAL")
-            db.execute("""CREATE TABLE IF NOT EXISTS reservations (
-                task_id TEXT PRIMARY KEY,
-                source_sha TEXT NOT NULL,
-                artifact_sha256 TEXT NOT NULL,
-                lease_id TEXT NOT NULL,
-                nonce TEXT NOT NULL UNIQUE,
-                state TEXT NOT NULL CHECK(state IN ('reserved'))
-            )""")
+            db.execute("BEGIN IMMEDIATE")
+            exists = db.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='reservations'"
+            ).fetchone()
+            schema = (exists["sql"] or "").lower() if exists else ""
+            if exists and not all(token in schema for token in (
+                    "repository", "workstream", "branch", "base_sha",
+                    "effect_unknown", "completed", "published_commit_sha")):
+                columns = {row["name"] for row in db.execute("PRAGMA table_info(reservations)")}
+                db.execute("DROP TABLE IF EXISTS reservations_next")
+                self._create_table(db, "reservations_next")
+                if {"task_id", "source_sha", "artifact_sha256", "lease_id", "nonce"}.issubset(columns):
+                    db.execute("""INSERT INTO reservations_next
+                        (task_id, repository, workstream, branch, base_sha, source_sha,
+                         artifact_sha256, lease_id, nonce, state)
+                        SELECT task_id, '', '', '', '', source_sha, artifact_sha256,
+                               lease_id, nonce, 'legacy_unscoped' FROM reservations""")
+                db.execute("DROP TABLE reservations")
+                db.execute("ALTER TABLE reservations_next RENAME TO reservations")
+            elif not exists:
+                self._create_table(db, "reservations")
+            db.execute("COMMIT")
+        except Exception:
+            if db.in_transaction:
+                db.execute("ROLLBACK")
+            raise
+        finally:
+            db.close()
+
+    @staticmethod
+    def _create_table(db: sqlite3.Connection, name: str) -> None:
+        db.execute(f"""CREATE TABLE {name} (
+            task_id TEXT PRIMARY KEY,
+            repository TEXT NOT NULL,
+            workstream TEXT NOT NULL,
+            branch TEXT NOT NULL,
+            base_sha TEXT NOT NULL,
+            source_sha TEXT NOT NULL,
+            artifact_sha256 TEXT NOT NULL,
+            lease_id TEXT NOT NULL,
+            nonce TEXT NOT NULL UNIQUE,
+            state TEXT NOT NULL CHECK(state IN
+                ('reserved', 'effect_unknown', 'completed', 'legacy_unscoped')),
+            published_commit_sha TEXT,
+            published_pr_number INTEGER,
+            publication_receipt_sha256 TEXT
+        )""")
 
     def _connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.database_path, timeout=5, isolation_level=None)
         db.row_factory = sqlite3.Row
         return db
 
-    def reserve(self, *, task_id: str, source_sha: str, artifact_sha256: str,
+    def reserve(self, *, task_id: str, repository: str, workstream: str,
+                branch: str, base_sha: str, source_sha: str, artifact_sha256: str,
                 lease_id: str, nonce: str) -> bool:
         """Return False for an exact replay; raise on changed/reused identifiers."""
         db = self._connect()
         try:
             db.execute("BEGIN IMMEDIATE")
             existing = db.execute(
-                "SELECT source_sha, artifact_sha256, lease_id, nonce FROM reservations WHERE task_id=?",
+                """SELECT repository, workstream, branch, base_sha, source_sha,
+                          artifact_sha256, lease_id, nonce, state
+                   FROM reservations WHERE task_id=?""",
                 (task_id,),
             ).fetchone()
             if existing:
-                exact = (existing["source_sha"] == source_sha
+                exact = (existing["repository"] == repository
+                         and existing["workstream"] == workstream
+                         and existing["branch"] == branch
+                         and existing["base_sha"] == base_sha
+                         and existing["source_sha"] == source_sha
                          and existing["artifact_sha256"] == artifact_sha256
                          and existing["lease_id"] == lease_id
-                         and existing["nonce"] == nonce)
+                         and existing["nonce"] == nonce
+                         and existing["state"] != "legacy_unscoped")
                 db.execute("COMMIT")
                 if exact:
                     return False
                 raise AdmissionDenied("TASK_ID_REUSED_WITH_CHANGED_EVIDENCE")
             try:
                 db.execute(
-                    "INSERT INTO reservations VALUES (?, ?, ?, ?, ?, 'reserved')",
-                    (task_id, source_sha, artifact_sha256, lease_id, nonce),
+                    """INSERT INTO reservations
+                    (task_id, repository, workstream, branch, base_sha, source_sha,
+                     artifact_sha256, lease_id, nonce, state)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved')""",
+                    (task_id, repository, workstream, branch, base_sha, source_sha,
+                     artifact_sha256, lease_id, nonce),
                 )
             except sqlite3.IntegrityError as exc:
                 db.execute("ROLLBACK")
@@ -193,6 +276,104 @@ class DurableReplayLedger:
             return True
         finally:
             db.close()
+
+    def get_task(self, task_id: str) -> TaskRecord | None:
+        db = self._connect()
+        try:
+            row = db.execute(
+                """SELECT task_id, state, published_commit_sha, published_pr_number,
+                          publication_receipt_sha256 FROM reservations WHERE task_id=?""",
+                (task_id,),
+            ).fetchone()
+        finally:
+            db.close()
+        if row is None:
+            return None
+        return TaskRecord(row["task_id"], row["state"], row["published_commit_sha"],
+                          row["published_pr_number"], row["publication_receipt_sha256"])
+
+    def begin_publication(self, task_id: str) -> str:
+        """Fence one publish attempt; unknown outcome requires receipt reconciliation."""
+        db = self._connect()
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT state FROM reservations WHERE task_id=?", (task_id,)).fetchone()
+            if row is None:
+                raise AdmissionDenied("TASK_RESERVATION_NOT_FOUND")
+            state = row["state"]
+            if state == "reserved":
+                db.execute("UPDATE reservations SET state='effect_unknown' WHERE task_id=?", (task_id,))
+                db.execute("COMMIT")
+                return "effect_unknown"
+            if state == "completed":
+                db.execute("COMMIT")
+                return state
+            if db.in_transaction:
+                db.execute("ROLLBACK")
+            raise AdmissionDenied("PUBLICATION_RECONCILIATION_REQUIRED" if state == "effect_unknown"
+                                  else "LEGACY_RESERVATION_SCOPE_UNTRUSTED")
+        finally:
+            db.close()
+
+    def acknowledge_publication(self, task_id: str, receipt: bytes,
+                                verifier: PublicationVerifier) -> TaskRecord:
+        """Mark complete only after an external verifier authenticates matching GitHub facts."""
+        effect = verifier.verify_publication(receipt)
+        if effect is None:
+            raise AdmissionDenied("AUTHENTICATED_PUBLICATION_RECEIPT_REQUIRED")
+        if (not _SHA40.fullmatch(effect.commit_sha)
+                or not isinstance(effect.pr_number, int)
+                or isinstance(effect.pr_number, bool)
+                or effect.pr_number < 1):
+            raise AdmissionDenied("PUBLICATION_RECEIPT_INVALID")
+        receipt_sha256 = hashlib.sha256(receipt).hexdigest()
+        db = self._connect()
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                """SELECT repository, workstream, branch, base_sha, source_sha,
+                          artifact_sha256, lease_id, state, published_commit_sha,
+                          published_pr_number, publication_receipt_sha256
+                   FROM reservations WHERE task_id=?""",
+                (task_id,),
+            ).fetchone()
+            if row is None:
+                raise AdmissionDenied("TASK_RESERVATION_NOT_FOUND")
+            matches = (effect.task_id == task_id
+                       and effect.repository == row["repository"]
+                       and effect.workstream == row["workstream"]
+                       and effect.branch == row["branch"]
+                       and effect.base_sha == row["base_sha"]
+                       and effect.source_sha == row["source_sha"]
+                       and effect.artifact_sha256 == row["artifact_sha256"]
+                       and effect.lease_id == row["lease_id"])
+            if not matches:
+                raise AdmissionDenied("PUBLICATION_RECEIPT_SCOPE_MISMATCH")
+            if row["state"] == "legacy_unscoped":
+                raise AdmissionDenied("LEGACY_RESERVATION_SCOPE_UNTRUSTED")
+            if row["state"] == "completed":
+                exact = (row["published_commit_sha"] == effect.commit_sha
+                         and row["published_pr_number"] == effect.pr_number
+                         and row["publication_receipt_sha256"] == receipt_sha256)
+                if not exact:
+                    raise AdmissionDenied("COMPLETION_RECEIPT_CONFLICT")
+                db.execute("COMMIT")
+            else:
+                db.execute(
+                    """UPDATE reservations SET state='completed', published_commit_sha=?,
+                       published_pr_number=?, publication_receipt_sha256=? WHERE task_id=?""",
+                    (effect.commit_sha, effect.pr_number, receipt_sha256, task_id),
+                )
+                db.execute("COMMIT")
+        except Exception:
+            if db.in_transaction:
+                db.execute("ROLLBACK")
+            raise
+        finally:
+            db.close()
+        record = self.get_task(task_id)
+        assert record is not None
+        return record
 
 
 class WorkerAdmissionAdapter:
@@ -293,6 +474,10 @@ class WorkerAdmissionAdapter:
 
         new_task = self.replay_ledger.reserve(
             task_id=request.task_id,
+            repository=request.repository,
+            workstream=request.workstream,
+            branch=request.branch,
+            base_sha=request.base_sha,
             source_sha=request.source_sha,
             artifact_sha256=request.artifact_sha256,
             lease_id=lease.lease_id,
