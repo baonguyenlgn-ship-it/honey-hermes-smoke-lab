@@ -8,7 +8,7 @@ before a separately approved publisher can perform those operations.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import re
 from typing import Mapping, Sequence
@@ -17,6 +17,7 @@ from typing import Mapping, Sequence
 REPOSITORY = "baonguyenlgn-ship-it/honey-hermes-smoke-lab"
 REQUIRED_PERMISSIONS = frozenset({"contents:write", "pull_requests:write"})
 ALLOWED_PERMISSIONS = REQUIRED_PERMISSIONS | {"metadata:read"}
+MAX_AUTH_TTL = timedelta(minutes=10)
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 _SHA64 = re.compile(r"^[0-9a-f]{64}$")
 _TASK_ID = re.compile(r"^[A-Z0-9][A-Z0-9-]{7,79}$")
@@ -61,10 +62,13 @@ class AuthorizationClaims:
     """Non-secret facts supplied by a trusted credential broker.
 
     A token or private key must never be passed to this object or this module.
+    `issued_at` and `expires_at` must come from the broker's authenticated
+    response; this value object cannot establish that provenance itself.
     """
 
     repository: str
     permissions: frozenset[str]
+    issued_at: datetime
     expires_at: datetime
     issuer: str
 
@@ -72,6 +76,7 @@ class AuthorizationClaims:
 @dataclass(frozen=True)
 class PublicationRecord:
     task_id: str
+    source_session: str
     artifact_sha256: str
     commit_sha: str
 
@@ -88,9 +93,12 @@ def validate_authorization(
     repository: str = REPOSITORY,
     now: datetime | None = None,
 ) -> None:
-    """Require a live, exact-repository, least-permission grant."""
+    """Require a live, exact-repository grant with a maximum 10-minute TTL."""
     instant = now or datetime.now(timezone.utc)
-    if instant.tzinfo is None or claims.expires_at.tzinfo is None:
+    if any(
+        timestamp.tzinfo is None
+        for timestamp in (instant, claims.issued_at, claims.expires_at)
+    ):
         raise AuthorizationRejected("authorization timestamps must include a timezone")
     if claims.repository != repository:
         raise AuthorizationRejected("authorization is not restricted to the LAB repository")
@@ -98,8 +106,14 @@ def validate_authorization(
         raise AuthorizationRejected("authorization lacks a required LAB write permission")
     if not claims.permissions.issubset(ALLOWED_PERMISSIONS):
         raise AuthorizationRejected("authorization grants permissions beyond the LAB minimum")
+    if claims.issued_at > instant:
+        raise AuthorizationRejected("authorization issue time is in the future")
     if claims.expires_at <= instant:
         raise AuthorizationRejected("authorization has expired")
+    if claims.expires_at <= claims.issued_at:
+        raise AuthorizationRejected("authorization expiry must follow its issue time")
+    if claims.expires_at - claims.issued_at > MAX_AUTH_TTL:
+        raise AuthorizationRejected("authorization TTL exceeds the 10-minute LAB policy")
     if not claims.issuer.strip():
         raise AuthorizationRejected("authorization issuer is missing")
 
@@ -109,6 +123,7 @@ def verify_artifact(
     manifest: ArtifactManifest,
     *,
     expected_task_id: str,
+    expected_source_session: str,
     expected_source_sha: str,
     expected_base_sha: str,
 ) -> str:
@@ -117,8 +132,12 @@ def verify_artifact(
         raise ArtifactMismatch("artifact payload must be bytes")
     if not _TASK_ID.fullmatch(manifest.task_id) or manifest.task_id != expected_task_id:
         raise ArtifactMismatch("task id does not match the authorized task")
-    if not manifest.source_session.strip():
-        raise ArtifactMismatch("source session is missing")
+    if (
+        not expected_source_session.strip()
+        or not manifest.source_session.strip()
+        or manifest.source_session != expected_source_session
+    ):
+        raise ArtifactMismatch("source session does not match the assigned Hermes session")
     if not _SHA40.fullmatch(manifest.source_sha) or manifest.source_sha != expected_source_sha:
         raise ArtifactMismatch("source SHA does not match the pinned source")
     if not _SHA40.fullmatch(manifest.base_sha) or manifest.base_sha != expected_base_sha:
@@ -149,6 +168,7 @@ def decide_publication(
     if existing_task is not None:
         if (
             existing_task.task_id == manifest.task_id
+            and existing_task.source_session == manifest.source_session
             and existing_task.artifact_sha256 == artifact_sha256
             and _SHA40.fullmatch(existing_task.commit_sha)
         ):
