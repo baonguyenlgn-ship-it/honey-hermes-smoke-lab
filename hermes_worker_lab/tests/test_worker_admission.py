@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 import sqlite3
+from contextlib import closing
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -429,7 +430,7 @@ class WorkerAdmissionTests(unittest.TestCase):
             self.assertEqual(ledger.get_task(TASK).state, "effect_unknown")
 
     def test_legacy_reservation_migrates_as_unscoped_and_fails_closed(self):
-        with sqlite3.connect(self.db) as db:
+        with closing(sqlite3.connect(self.db)) as db, db:
             db.execute("""CREATE TABLE reservations (
                 task_id TEXT PRIMARY KEY, source_sha TEXT NOT NULL,
                 artifact_sha256 TEXT NOT NULL, lease_id TEXT NOT NULL,
