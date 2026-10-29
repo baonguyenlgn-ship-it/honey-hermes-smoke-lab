@@ -1,0 +1,16 @@
+"use strict";
+const test=require("node:test"),assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path");
+const {audit}=require("../voice/supertonic3_preflight_gate.js");
+const base=JSON.parse(fs.readFileSync(path.join(__dirname,"../voice/supertonic3_preflight.json"),"utf8"));
+const copy=()=>structuredClone(base);
+test("honest preflight research stage",()=>assert.equal(audit(copy()).result,"SUPERTONIC3_RESEARCH_ONLY"));
+test("reject moving revision",()=>{const x=copy();x.source.revision="main";assert.throws(()=>audit(x));});
+test("reject model weights falsely licensed MIT",()=>{const x=copy();x.license_weights="MIT";assert.throws(()=>audit(x));});
+test("reject fabricated audio",()=>{const x=copy();x.observed_audio={duration:5};assert.throws(()=>audit(x));});
+test("reject unverified SHA",()=>{const x=copy();x.constraints.model_hash_verified=true;assert.throws(()=>audit(x));});
+test("reject consent bypass",()=>{const x=copy();x.constraints.no_owner_impersonation=false;assert.throws(()=>audit(x));});
+test("reject deceptive non-disclosure",()=>{const x=copy();x.constraints.disclose_generated_speech=false;assert.throws(()=>audit(x));});
+test("reject auto download",()=>{const x=copy();x.constraints.no_auto_download=false;assert.throws(()=>audit(x));});
+test("reject false premium voice approval",()=>{const x=copy();x.constraints.voice_timbre_pass=true;assert.throws(()=>audit(x));});
+test("reject premature commercial approval",()=>{const x=copy();x.constraints.commercial_clearance=true;assert.throws(()=>audit(x));});
+test("reject production approval",()=>{const x=copy();x.constraints.authorized_production=true;assert.throws(()=>audit(x));});

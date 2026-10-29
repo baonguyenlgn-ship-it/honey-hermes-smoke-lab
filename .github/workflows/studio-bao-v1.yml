@@ -39,6 +39,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node studio_bao_v1/voice/voice_candidate_gate.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check studio_bao_v1/voice/supertonic3_preflight_gate.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test studio_bao_v1/tests/supertonic3_preflight.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node studio_bao_v1/voice/supertonic3_preflight_gate.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Output "STUDIO_WINDOWS_QA_PASS"
       - name: Real Windows Chrome desktop/mobile E2E and screenshots
         shell: pwsh
@@ -139,7 +145,8 @@ jobs:
           retention-days: 2
 
   windows-ko-offline-synthesis-research:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # Previously successful Korean WAV run 40955324169; freeze until substantive KO TTS delta.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 9
     steps:
