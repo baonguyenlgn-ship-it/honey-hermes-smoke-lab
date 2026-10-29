@@ -95,3 +95,24 @@ test("all interactive controls exist in the HTML",()=>{
  for(const id of ["lang","play-btn","reset-btn","reply-btn","draft-btn","products","subtitle","script-content","reply-content","draft-count"])
   assert.ok(html.includes('id="'+id+'"'),id);
 });
+
+test("all user-facing studio headings and prototype captions are localized in 4 languages",()=>{
+ for(const lang of studio.LANGS){
+  const copy=studio.COPY[lang];
+  for(const key of ["stageHeading","productsHeading","scriptHeading","commentsHeading","timeline","productNote","transport","draftStatus"])
+   assert.ok(copy.labels[key]?.trim(),lang+" missing "+key);
+  for(const product of studio.PRODUCTS)assert.ok(copy.subtitles[product]?.trim(),lang+" missing "+product);
+ }
+});
+test("playing demo subtitle follows product and language; reset uses greeting",()=>{
+ let s=studio.initialState();
+ assert.equal(studio.viewModel(s).subtitle,studio.COPY.vi.subtitle);
+ s=studio.transition(s,{type:"PLAY"});
+ assert.equal(studio.viewModel(s).subtitle,studio.COPY.vi.subtitles.mango);
+ s=studio.transition(s,{type:"PRODUCT",value:"coconut"});
+ assert.equal(studio.viewModel(s).subtitle,studio.COPY.vi.subtitles.coconut);
+ s=studio.transition(s,{type:"LANGUAGE",value:"ko"});
+ assert.equal(studio.viewModel(s).subtitle,studio.COPY.ko.subtitles.coconut);
+ s=studio.transition(s,{type:"RESET"});
+ assert.equal(studio.viewModel(s).subtitle,studio.COPY.ko.subtitle);
+});
