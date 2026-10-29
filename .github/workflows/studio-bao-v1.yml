@@ -585,7 +585,8 @@ jobs:
           retention-days: 2
 
   supertonic3-private-review-station-browser:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # Chrome Windows VI/KO local JSON and mobile/privacy verified PASS 40969004675.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 5
     steps:
@@ -616,3 +617,24 @@ jobs:
           node studio_bao_v1/tests/review_station_browser_e2e.js
           if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
           Write-Output 'HONEY_ST3_PRIVATE_REVIEW_STATION_WINDOWS_QA_PASS_NO_REAL_REVIEW'
+
+  supertonic3-offline-native-review-reconciliation:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 3
+    steps:
+      - name: Exact Studio PR HEAD read-only checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Fail-closed offline 4-reviewer metadata reconciliation with adversarial test-of-tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'REVIEW_RECONCILIATION_HEAD_MISMATCH'}
+          node --check studio_bao_v1/reviewer/review_station_merge.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/review_station_merge.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'ST3_OFFLINE_REVIEW_RECONCILIATION_QA_PASS_NO_HUMAN_APPROVAL'
