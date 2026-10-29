@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import sqlite3
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -12,6 +13,7 @@ from hermes_worker_lab.worker_admission import (
     GuardSnapshot,
     IdentityClaims,
     LeaseClaims,
+    PublishedEffect,
     WorkerAdmissionAdapter,
 )
 
@@ -47,6 +49,16 @@ class SyntheticVerifier:
 
     def verify_guard_snapshot(self, receipt):
         return self._get(receipt, "snapshot")
+
+
+class SyntheticPublicationVerifier:
+    """Returns fake publication claims; this does not authenticate GitHub."""
+
+    def __init__(self, receipt):
+        self.receipt = receipt
+
+    def verify_publication(self, encoded_receipt):
+        return self.receipt if encoded_receipt == b"fake-github-receipt" else None
 
 
 def evidence(*, assignment=None, identity=None, lease=None, snapshot=None):
@@ -112,6 +124,22 @@ class WorkerAdmissionTests(unittest.TestCase):
             workstream=WORKSTREAM,
             verifier=verifier,
             replay_ledger=DurableReplayLedger(self.db),
+        )
+
+    def reserve(self, ledger, task_id=TASK, branch=BRANCH, lease_id="lease-synthetic",
+                nonce="nonce-synthetic"):
+        return ledger.reserve(
+            task_id=task_id, repository=REPO, workstream=WORKSTREAM,
+            branch=branch, base_sha=BASE, source_sha=SOURCE,
+            artifact_sha256=ARTIFACT, lease_id=lease_id, nonce=nonce,
+        )
+
+    def published_effect(self, task_id=TASK, branch=BRANCH):
+        return PublishedEffect(
+            task_id=task_id, repository=REPO, workstream=WORKSTREAM,
+            branch=branch, base_sha=BASE, source_sha=SOURCE,
+            artifact_sha256=ARTIFACT, lease_id="lease-synthetic",
+            commit_sha="e" * 40, pr_number=6,
         )
 
     def test_synthetic_exact_scope_is_contract_valid_but_performs_no_write(self):
@@ -213,6 +241,73 @@ class WorkerAdmissionTests(unittest.TestCase):
         self.assertFalse(first.replay)
         self.assertTrue(reopened.replay)
         self.assertFalse(reopened.side_effects_performed)
+
+    def test_crash_after_reservation_before_publish_resumes_same_unfinished_task(self):
+        ledger = DurableReplayLedger(self.db)
+        self.assertTrue(self.reserve(ledger))
+
+        # Simulate restart before the publisher was entered.
+        restarted = DurableReplayLedger(self.db)
+        record = restarted.get_task(TASK)
+        self.assertEqual(record.state, "reserved")
+        self.assertFalse(self.reserve(restarted))
+        self.assertEqual(restarted.begin_publication(TASK), "effect_unknown")
+        self.assertEqual(restarted.get_task(TASK).state, "effect_unknown")
+
+    def test_publish_succeeded_but_ack_was_lost_reconciles_without_republish(self):
+        ledger = DurableReplayLedger(self.db)
+        self.assertTrue(self.reserve(ledger))
+        self.assertEqual(ledger.begin_publication(TASK), "effect_unknown")
+
+        # Simulate the remote publish succeeding before the local ACK was saved.
+        restarted = DurableReplayLedger(self.db)
+        self.assertEqual(restarted.get_task(TASK).state, "effect_unknown")
+        with self.assertRaisesRegex(AdmissionDenied, "PUBLICATION_RECONCILIATION_REQUIRED"):
+            restarted.begin_publication(TASK)
+
+        verifier = SyntheticPublicationVerifier(self.published_effect())
+        result = restarted.acknowledge_publication(
+            TASK, b"fake-github-receipt", verifier,
+        )
+        self.assertEqual(result.state, "completed")
+        self.assertEqual(result.commit_sha, "e" * 40)
+        self.assertEqual(result.pr_number, 6)
+        self.assertFalse(self.reserve(restarted))
+        self.assertEqual(restarted.get_task(TASK).state, "completed")
+
+    def test_missing_or_mismatched_external_receipt_cannot_complete_task(self):
+        ledger = DurableReplayLedger(self.db)
+        self.reserve(ledger)
+        ledger.begin_publication(TASK)
+
+        with self.assertRaisesRegex(AdmissionDenied, "AUTHENTICATED_PUBLICATION_RECEIPT_REQUIRED"):
+            ledger.acknowledge_publication(
+                TASK, b"fake-github-receipt", SyntheticPublicationVerifier(None),
+            )
+        wrong_scope = replace(self.published_effect(), branch="lab/other-task")
+        with self.assertRaisesRegex(AdmissionDenied, "PUBLICATION_RECEIPT_SCOPE_MISMATCH"):
+            ledger.acknowledge_publication(
+                TASK, b"fake-github-receipt", SyntheticPublicationVerifier(wrong_scope),
+            )
+        self.assertEqual(ledger.get_task(TASK).state, "effect_unknown")
+
+    def test_legacy_reservation_migrates_as_unscoped_and_fails_closed(self):
+        with sqlite3.connect(self.db) as db:
+            db.execute("""CREATE TABLE reservations (
+                task_id TEXT PRIMARY KEY, source_sha TEXT NOT NULL,
+                artifact_sha256 TEXT NOT NULL, lease_id TEXT NOT NULL,
+                nonce TEXT NOT NULL UNIQUE,
+                state TEXT NOT NULL CHECK(state IN ('reserved'))
+            )""")
+            db.execute("INSERT INTO reservations VALUES (?, ?, ?, ?, ?, 'reserved')",
+                       (TASK, SOURCE, ARTIFACT, "lease-synthetic", "nonce-synthetic"))
+
+        migrated = DurableReplayLedger(self.db)
+        self.assertEqual(migrated.get_task(TASK).state, "legacy_unscoped")
+        with self.assertRaisesRegex(AdmissionDenied, "LEGACY_RESERVATION_SCOPE_UNTRUSTED"):
+            migrated.begin_publication(TASK)
+        with self.assertRaisesRegex(AdmissionDenied, "TASK_ID_REUSED_WITH_CHANGED_EVIDENCE"):
+            self.reserve(migrated)
 
     def test_nonce_reuse_for_different_task_is_rejected(self):
         self.adapter(evidence()).admit(request(), now=NOW)
