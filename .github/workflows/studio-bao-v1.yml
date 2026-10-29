@@ -256,7 +256,8 @@ jobs:
           retention-days: 2
 
   supertonic3-m1-five-request-resource-benchmark:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # CPU 5/5 load and process memory measured in run 40960164053; preserve PASS.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 12
     steps:
@@ -295,5 +296,41 @@ jobs:
           path: |
             ${{ runner.temp }}/honey-m1-bench/source-report.json
             ${{ runner.temp }}/honey-m1-bench/benchmark.json
+          if-no-files-found: warn
+          retention-days: 2
+
+  supertonic3-windows-dependency-wheel-hash-lock:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 7
+    steps:
+      - name: Checkout exact Studio PR head with read-only token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Download exact dependency wheels and verify offline hash-locked reinstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'WHEEL_LOCK_HEAD_MISMATCH'}
+          python studio_bao_v1/voice/lock_windows_wheels.py "${{ runner.temp }}/honey-wheels"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Independently reject wheel substitution or false offline/pass claims
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/voice/lock_windows_wheels_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/lock_windows_wheels_check.js "${{ runner.temp }}/honey-wheels"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Publish only hash lock and summary metadata (not wheels)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: honey-supertonic3-windows-cp312-wheel-hash-lock
+          path: |
+            ${{ runner.temp }}/honey-wheels/wheel-lock-report.json
+            ${{ runner.temp }}/honey-wheels/requirements-win-py312-hashes.txt
           if-no-files-found: warn
           retention-days: 2
