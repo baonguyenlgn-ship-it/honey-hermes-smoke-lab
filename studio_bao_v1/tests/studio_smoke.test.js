@@ -307,7 +307,8 @@ test("local verified WAV playback uses only blob URL, native media and manual cu
  assert.match(html,/id="local-audio-player"/);
  assert.match(html,/preload="metadata" controls hidden/);
  assert.match(html,/id="local-audio-caption"/);
- assert.match(html,/NOT SPEECH-SYNCED/);
+ assert.match(js,/NOT SPEECH-SYNCED/);
+ assert.match(html,/not validated speech alignment/);
  assert.ok(js.includes("URL.createObjectURL(new Blob([bytes]"));
  assert.ok(js.includes("URL.revokeObjectURL(playbackUrl)"));
  assert.ok(js.includes('audioPlayer.addEventListener("loadedmetadata"'));
