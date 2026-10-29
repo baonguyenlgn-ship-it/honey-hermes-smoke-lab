@@ -1,8 +1,14 @@
-param([Parameter(Mandatory=$true)][string]$Out,[ValidateSet('Wav','Benchmark')][string]$Mode='Wav')
+param([Parameter(Mandatory=$true)][string]$Out,[ValidateSet('Wav','Benchmark')][string]$Mode='Wav',[Parameter(Mandatory=$true)][string]$RuntimeDir)
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
 $m=Get-Content (Join-Path $PSScriptRoot 'supertonic3_official_digests.json') -Raw | ConvertFrom-Json
+$runtimeExe=Join-Path $RuntimeDir 'venv/Scripts/python.exe'
+$runtimeReport=Join-Path $RuntimeDir 'locked-runtime-report.json'
+if(-not(Test-Path -LiteralPath $runtimeExe) -or -not(Test-Path -LiteralPath $runtimeReport)){throw 'NO_PINNED_ISOLATED_RUNTIME'}
+$runtimeProof=Get-Content -LiteralPath $runtimeReport -Raw -Encoding utf8 | ConvertFrom-Json
+$lockHash=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'requirements-win-py312-hashes.txt') -Algorithm SHA256).Hash.ToLowerInvariant()
+if($runtimeProof.status -ne 'HASH_LOCKED_ISOLATED_WINDOWS_VENV_READY' -or $runtimeProof.original_lock_sha256 -ne $lockHash -or -not $runtimeProof.offline_install_verified -or -not $runtimeProof.installed_versions_verified -or -not $runtimeProof.venv_isolated){throw 'RUNTIME_SHA_LOCK_GATE_FAILED'}
 $root=Join-Path $Out 'model'
 New-Item -ItemType Directory -Force -Path $root | Out-Null
 $r=[ordered]@{status='UNTESTED';revision=$m.revision;weight_hashes=@();auxiliary_hashes=@();bytes=0;wav_generated=$false;commercial_approved=$false;error_type=$null}
@@ -34,17 +40,18 @@ try{
  }
  $r.status='ASSETS_VERIFIED'
  $r | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath (Join-Path $Out 'source-report.json') -Encoding utf8
- python -m pip install --disable-pip-version-check --no-input --only-binary=:all: onnxruntime==1.23.1 numpy==2.2.6
- if($LASTEXITCODE -ne 0){throw ('PINNED_RUNTIME_INSTALL_EXIT_'+$LASTEXITCODE)}
+ $r.runtime_lock_sha256=$lockHash
+ $r.isolated_runtime_verified=$true
+ # Python dependencies were already verified and installed OFFLINE in a fresh venv.
  $r.status='RUNTIME_READY'
  if($Mode -eq 'Benchmark'){
-   python (Join-Path $PSScriptRoot 'supertonic3_m1_benchmark.py') $root $Out
+   & $runtimeExe (Join-Path $PSScriptRoot 'supertonic3_m1_benchmark.py') $root $Out
    if($LASTEXITCODE -ne 0){throw ('CPU_BENCHMARK_EXIT_'+$LASTEXITCODE)}
    if(-not(Test-Path -LiteralPath (Join-Path $Out 'benchmark.json'))){throw 'BENCHMARK_REPORT_MISSING'}
    $r.status='BENCHMARK_EMITTED_NEEDS_INDEPENDENT_QA'
    $r.wav_generated=$false
  } else {
-   python (Join-Path $PSScriptRoot 'supertonic3_m1_cpu.py') $root $Out
+   & $runtimeExe (Join-Path $PSScriptRoot 'supertonic3_m1_cpu.py') $root $Out
    if($LASTEXITCODE -ne 0){throw ('CPU_INFERENCE_EXIT_'+$LASTEXITCODE)}
    if(-not (Test-Path -LiteralPath (Join-Path $Out 'inference.json'))){throw 'INFERENCE_REPORT_MISSING'}
    $r.status='INFERENCE_EMITTED_NEEDS_INDEPENDENT_QA'
