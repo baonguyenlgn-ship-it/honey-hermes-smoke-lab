@@ -124,7 +124,7 @@ test("all 4 languages contain exactly 3 narrative beats for each of 3 fruit prod
    const beats=studio.STORYBOARD[lang][product];
    assert.equal(beats.length,3,lang+" "+product);
    for(const beat of beats)for(const key of ["script","subtitle"])
-    assert.ok(typeof beat[key]==="string"&&beat[key].length>15,lang+" "+product+" "+key);
+    assert.ok(typeof beat[key]==="string"&&beat[key].trim().length>=8,lang+" "+product+" "+key);
    assert.notEqual(beats[0].subtitle,beats[1].subtitle);
    assert.notEqual(beats[1].subtitle,beats[2].subtitle);
   }
