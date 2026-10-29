@@ -42,3 +42,22 @@ footer{display:flex;gap:10px;justify-content:space-between;color:#647b88;font-si
   .product{min-width:0;overflow-wrap:anywhere}
   .product-grid{min-width:0}
 }
+
+/* Independently identified visual QA defect: mobile decorative rail steals width,
+   while primary simulation action and stage heading wrap at narrow viewports. */
+@media(max-width:690px){
+  .rail{display:none}
+  .main{padding:16px 14px 18px}
+  .stage-panel>.panel-head h2{font-size:15px}
+  .player-controls{gap:8px}
+  .transport{width:100%;gap:9px}
+  .transport .primary-btn{white-space:nowrap;padding:10px 12px;flex-shrink:0}
+  .transport .secondary-btn{flex-shrink:0}
+  .transport .tiny{display:none}
+  .transport .timeline{display:none}
+}
+@media(max-width:370px){
+  .stage-panel>.panel-head{flex-wrap:wrap;gap:7px}
+  .stage-panel>.panel-head h2{white-space:nowrap}
+  .stage-panel>.panel-head .soft-pill{flex-shrink:0}
+}
