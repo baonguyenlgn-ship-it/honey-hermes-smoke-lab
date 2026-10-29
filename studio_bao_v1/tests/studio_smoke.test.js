@@ -45,7 +45,7 @@ test("no real broadcast, storage, network calls or external sends",()=>{
 });
 test("state is initialized offline with no orders",()=>{
  const s=studio.initialState();
- assert.deepEqual(s,{language:"vi",product:"mango",playing:false,replied:false,draftCount:0});
+ assert.deepEqual(s,{language:"vi",product:"mango",playing:false,sceneIndex:0,replied:false,draftCount:0});
 });
 test("play is a reversible local storyboard state",()=>{
  const s=studio.initialState();
@@ -115,4 +115,61 @@ test("playing demo subtitle follows product and language; reset uses greeting",(
  assert.equal(studio.viewModel(s).subtitle,studio.COPY.ko.subtitles.coconut);
  s=studio.transition(s,{type:"RESET"});
  assert.equal(studio.viewModel(s).subtitle,studio.COPY.ko.subtitle);
+});
+
+test("all 4 languages contain exactly 3 narrative beats for each of 3 fruit products",()=>{
+ for(const lang of studio.LANGS){
+  assert.equal(studio.SCENE_UI[lang].titles.length,3);
+  for(const product of studio.PRODUCTS){
+   const beats=studio.STORYBOARD[lang][product];
+   assert.equal(beats.length,3,lang+" "+product);
+   for(const beat of beats)for(const key of ["script","subtitle"])
+    assert.ok(typeof beat[key]==="string"&&beat[key].length>15,lang+" "+product+" "+key);
+   assert.notEqual(beats[0].subtitle,beats[1].subtitle);
+   assert.notEqual(beats[1].subtitle,beats[2].subtitle);
+  }
+ }
+});
+test("scene commands are gated until play and cannot overrun 3 beats",()=>{
+ let state=studio.initialState();
+ assert.strictEqual(studio.transition(state,{type:"NEXT_SCENE"}),state);
+ assert.equal(studio.viewModel(state).nextDisabled,true);
+ state=studio.transition(state,{type:"PLAY"});
+ for(let n=0;n<10;n++)state=studio.transition(state,{type:"NEXT_SCENE"});
+ assert.equal(state.sceneIndex,2);
+ assert.equal(studio.viewModel(state).sceneCounter,"03 / 03");
+ assert.equal(studio.viewModel(state).nextDisabled,true);
+ for(let n=0;n<10;n++)state=studio.transition(state,{type:"PREV_SCENE"});
+ assert.equal(state.sceneIndex,0);
+ assert.equal(studio.viewModel(state).previousDisabled,true);
+});
+test("product change returns to first beat and language preserves selected beat",()=>{
+ let state=studio.transition(studio.initialState(),{type:"PLAY"});
+ state=studio.transition(state,{type:"NEXT_SCENE"});
+ const viCaption=studio.viewModel(state).subtitle;
+ state=studio.transition(state,{type:"LANGUAGE",value:"ko"});
+ assert.equal(state.sceneIndex,1);
+ assert.notEqual(studio.viewModel(state).subtitle,viCaption);
+ assert.equal(studio.viewModel(state).subtitle,studio.STORYBOARD.ko.mango[1].subtitle);
+ state=studio.transition(state,{type:"PRODUCT",value:"pomelo"});
+ assert.equal(state.sceneIndex,0);
+ assert.equal(studio.viewModel(state).subtitle,studio.STORYBOARD.ko.pomelo[0].subtitle);
+});
+test("pause resumes current beat but shows safe greeting while paused",()=>{
+ let state=studio.transition(studio.initialState(),{type:"PLAY"});
+ state=studio.transition(state,{type:"NEXT_SCENE"});
+ state=studio.transition(state,{type:"PLAY"});
+ assert.equal(state.sceneIndex,1);
+ assert.equal(studio.viewModel(state).subtitle,studio.COPY.vi.subtitle);
+ assert.strictEqual(studio.transition(state,{type:"NEXT_SCENE"}),state);
+ state=studio.transition(state,{type:"PLAY"});
+ assert.equal(studio.viewModel(state).subtitle,studio.STORYBOARD.vi.mango[1].subtitle);
+ state=studio.transition(state,{type:"RESET"});
+ assert.equal(state.sceneIndex,0);
+ assert.equal(state.playing,false);
+});
+test("navigation controls are present and mock-only",()=>{
+ for(const id of ["prev-scene-btn","next-scene-btn","scene-counter","scene-caption"])
+  assert.ok(html.includes('id="'+id+'"'),id);
+ assert.ok(html.includes("Demo storyboard scenes"));
 });

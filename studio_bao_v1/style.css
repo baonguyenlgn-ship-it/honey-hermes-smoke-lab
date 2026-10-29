@@ -61,3 +61,20 @@ footer{display:flex;gap:10px;justify-content:space-between;color:#647b88;font-si
   .stage-panel>.panel-head h2{white-space:nowrap}
   .stage-panel>.panel-head .soft-pill{flex-shrink:0}
 }
+
+/* Three-beat, manual-only DEV storyboard: no timer, streaming or external calls. */
+.scene-stepper{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;margin-top:13px;border-top:1px solid #2b424e;padding-top:13px}
+.scene-nav{min-height:44px;min-width:0;padding:10px 13px;border-radius:9px;background:#152c38;border:1px solid #55707a;color:#f0ddbd;font-size:12px;font-weight:750;white-space:nowrap}
+.scene-nav:last-child{justify-self:stretch}
+.scene-nav:first-child{justify-self:stretch}
+.scene-nav:disabled{cursor:not-allowed;color:#6c838c;border-color:#263d47;background:#10212a}
+.scene-nav:not(:disabled):hover{border-color:#d4ac76;background:#203d47}
+.scene-meta{display:flex;flex-direction:column;text-align:center;gap:4px;align-items:center;min-width:90px}
+.scene-meta strong{font-size:14px;color:#ecc99a;letter-spacing:1px;font-variant-numeric:tabular-nums}
+.scene-meta span{font-size:9px;letter-spacing:.8px;color:#91a8b0;font-weight:800}
+@media(max-width:690px){
+ .scene-stepper{gap:5px;margin-top:10px;padding-top:12px}
+ .scene-nav{font-size:11px;padding:9px 6px}
+ .scene-meta{min-width:68px}
+ .scene-meta span{font-size:8px;letter-spacing:0;max-width:82px}
+}

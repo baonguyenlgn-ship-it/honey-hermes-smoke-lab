@@ -116,8 +116,20 @@ async function main(){
  assert.equal(await evaluate("document.getElementById('comments-heading').textContent"),"댓글 시뮬레이터");
  await evaluate("document.getElementById('play-btn').click(); true");
  assert.equal(await evaluate("document.getElementById('subtitle').textContent.includes('망고')"),true);
+ assert.equal(await evaluate("document.getElementById('scene-counter').textContent"),"01 / 03");
+ assert.equal(await evaluate("document.getElementById('next-scene-btn').disabled"),false);
+ await evaluate("document.getElementById('next-scene-btn').click(); true");
+ assert.equal(await evaluate("document.getElementById('scene-counter').textContent"),"02 / 03");
+ assert.equal(await evaluate("document.getElementById('subtitle').textContent.includes('품종')"),true);
+ await evaluate("document.getElementById('next-scene-btn').click(); true");
+ assert.equal(await evaluate("document.getElementById('scene-counter').textContent"),"03 / 03");
+ assert.equal(await evaluate("document.getElementById('next-scene-btn').disabled"),true);
+ assert.equal(await evaluate("document.getElementById('subtitle').textContent.includes('택배')"),true);
+ await evaluate("document.getElementById('prev-scene-btn').click(); true");
+ assert.equal(await evaluate("document.getElementById('scene-counter').textContent"),"02 / 03");
  assert.equal(await evaluate("document.getElementById('play-btn').getAttribute('aria-pressed')"),"true");
  await evaluate("document.querySelector('[data-product=coconut]').click(); true");
+ assert.equal(await evaluate("document.getElementById('scene-counter').textContent"),"01 / 03");
  assert.equal(await evaluate("document.getElementById('script-content').textContent.includes('코코넛')"),true);
  assert.equal(await evaluate("document.getElementById('subtitle').textContent.includes('코코넛')"),true);
  await evaluate("document.getElementById('reply-btn').click(); true");
@@ -149,7 +161,7 @@ async function main(){
  console.log("BROWSER_DESKTOP="+JSON.stringify(desktop));
  console.log("BROWSER_MOBILE="+JSON.stringify(mobileSizes));
  console.log("BROWSER_DESKTOP_SCREENSHOT="+JSON.stringify(desktopScreenshot));
- console.log("BROWSER_REAL_INTERACTIONS=ko-language,play,pause-reset,product-switch,mock-reply,mock-draft");
+ console.log("BROWSER_REAL_INTERACTIONS=ko-language,storyboard-3-beats,prev-next-limits,play,pause-reset,product-switch,mock-reply,mock-draft");
  console.log("BROWSER_NETWORK=NO_EXTERNAL_REQUESTS");
  console.log("STUDIO_BROWSER_WINDOWS_PASS");
 }
