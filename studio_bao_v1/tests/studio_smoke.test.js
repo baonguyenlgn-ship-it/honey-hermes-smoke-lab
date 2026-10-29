@@ -224,3 +224,62 @@ test("export control is available offline, clearly DEMO and not an audio sync cl
  assert.ok(html.includes("chưa đồng bộ giọng nói/video"));
  assert.ok(subtitleSource.includes("DEMO_ESTIMATED_TIME_NOT_AUDIO_SYNC"));
 });
+
+const audioTiming=require("../audio_timing.js");
+const {createHash}=require("node:crypto");
+function silentFixture(){
+ const pcmBytes=16000,bytes=Buffer.alloc(pcmBytes+44);
+ bytes.write("RIFF",0);bytes.writeUInt32LE(bytes.length-8,4);bytes.write("WAVE",8);
+ bytes.write("fmt ",12);bytes.writeUInt32LE(16,16);bytes.writeUInt16LE(1,20);
+ bytes.writeUInt16LE(1,22);bytes.writeUInt32LE(8000,24);
+ bytes.writeUInt32LE(16000,28);bytes.writeUInt16LE(2,32);bytes.writeUInt16LE(16,34);
+ bytes.write("data",36);bytes.writeUInt32LE(pcmBytes,40);
+ return bytes;
+}
+function fixtureManifest(bytes){
+ const names=studio.STORYBOARD.vi.mango.map(x=>x.subtitle);
+ return {version:1,method:"manual_unverified_alignment",language:"vi",product:"mango",
+  durationMs:1000,sha256:createHash("sha256").update(bytes).digest("hex"),
+  cues:[{startMs:0,endMs:300,text:names[0]},{startMs:300,endMs:700,text:names[1]},{startMs:700,endMs:1000,text:names[2]}]};
+}
+function arrayBuffer(buffer){return buffer.buffer.slice(buffer.byteOffset,buffer.byteOffset+buffer.byteLength)}
+test("native PCM WAV metadata derives from bytes rather than claimed manifest",()=>{
+ const wav=silentFixture(),meta=audioTiming.parseWav(arrayBuffer(wav));
+ assert.equal(meta.durationMs,1000);assert.equal(meta.sampleCount,8000);
+ assert.equal(meta.channels,1);assert.equal(meta.sampleRate,8000);
+ const tampered=Buffer.from(wav);tampered.write("BAD!",0);
+ assert.throws(()=>audioTiming.parseWav(arrayBuffer(tampered)),/WAV_RIFF_INVALID/);
+});
+test("valid synthetic silence verifies SHA but NEVER spoken alignment or rights",async()=>{
+ const wav=silentFixture(),manifest=fixtureManifest(wav);
+ const report=await audioTiming.verify({wavBytes:arrayBuffer(wav),manifest,language:"vi",product:"mango",beats:studio.STORYBOARD.vi.mango});
+ assert.equal(report.integrity,"WAV_SHA256_MATCHED");
+ assert.equal(report.alignment,"MANUAL_NOT_VERIFIED_WITH_SPEECH");
+ assert.equal(report.rights,"NOT_VERIFIED");
+ assert.equal(report.audio.durationMs,1000);
+ assert.match(captions.render(report.cues,"vtt"),/00:00:00.700 --> 00:00:01.000/);
+});
+test("audio duration SHA transcript language and unknown fields fail closed",async()=>{
+ const wav=silentFixture(),manifest=fixtureManifest(wav),args={wavBytes:arrayBuffer(wav),language:"vi",product:"mango",beats:studio.STORYBOARD.vi.mango};
+ await assert.rejects(audioTiming.verify({...args,manifest:{...manifest,durationMs:1001}}),/MANIFEST_DURATION_MISMATCH/);
+ await assert.rejects(audioTiming.verify({...args,manifest:{...manifest,sha256:"0".repeat(64)}}),/WAV_SHA_MISMATCH/);
+ await assert.rejects(audioTiming.verify({...args,manifest:{...manifest,language:"ko"}}),/MANIFEST_SCOPE_INVALID/);
+ await assert.rejects(audioTiming.verify({...args,manifest:{...manifest,extra:true}}),/MANIFEST_EXTRA_FIELDS/);
+ const cues=manifest.cues.map((c,i)=>i===0?{...c,text:"wrong product claim"}:c);
+ await assert.rejects(audioTiming.verify({...args,manifest:{...manifest,cues}}),/TIMING_TEXT_MISMATCH/);
+});
+test("manual timing gap incomplete coverage unsupported PCM fail closed",async()=>{
+ const wav=silentFixture(),manifest=fixtureManifest(wav),args={wavBytes:arrayBuffer(wav),language:"vi",product:"mango",beats:studio.STORYBOARD.vi.mango};
+ const gap=manifest.cues.map((c,i)=>i===1?{...c,startMs:325}:c);
+ await assert.rejects(audioTiming.verify({...args,manifest:{...manifest,cues:gap}}),/TIMING_GAP_OVERLAP_OR_BOUNDS/);
+ const short=manifest.cues.map((c,i)=>i===2?{...c,endMs:900}:c);
+ await assert.rejects(audioTiming.verify({...args,manifest:{...manifest,cues:short}}),/TIMING_INCOMPLETE/);
+ const invalid=Buffer.from(wav);invalid.writeUInt16LE(24,34);
+ assert.throws(()=>audioTiming.parseWav(arrayBuffer(invalid)),/WAV_PCM16_REQUIRED/);
+});
+test("audio contract has no network and explicitly rejects voice/rights certification",()=>{
+ const code=fs.readFileSync(path.join(root,"audio_timing.js"),"utf8");
+ assert.doesNotMatch(code,/fetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon/);
+ assert.match(code,/MANUAL_NOT_VERIFIED_WITH_SPEECH/);
+ assert.match(code,/rights:"NOT_VERIFIED"/);
+});
