@@ -1,0 +1,50 @@
+{
+  "schema": "honey.offline-voice-candidates.v1",
+  "purpose": "Evidence registry only: no synthesis, download, release or production",
+  "created_utc": "2026-10-29",
+  "policy": {
+    "network_in_ci": "none",
+    "commercial_use": "BLOCKED_UNTIL_INDEPENDENT_REVIEW",
+    "owner_voice_clone": "FORBIDDEN",
+    "asset_publication": "FORBIDDEN",
+    "offshore_or_paid_services": "FORBIDDEN"
+  },
+  "candidates": [
+    {
+      "id": "vi-piper-vais1000-medium",
+      "locale": "vi-VN",
+      "engine": "Piper",
+      "research_source": "https://huggingface.co/rhasspy/piper-voices/tree/v1.0.0/vi/vi_VN/vais1000/medium",
+      "license_evidence": "https://huggingface.co/rhasspy/piper-voices/blob/v1.0.0/vi/vi_VN/vais1000/medium/MODEL_CARD",
+      "public_license_signal": "MODEL_CARD indicates VAIS1000 dataset CC-BY-4.0; source repo reports MIT. Verify model and attribution separately.",
+      "readiness": "RESEARCH_ONLY",
+      "model_sha256": null,
+      "runtime_sha256": null,
+      "config_sha256": null,
+      "wav_sha256": null,
+      "windows_run_id": null,
+      "source_and_dependency_rights_review": "PENDING",
+      "male_voice_review": "PENDING",
+      "native_language_quality_review": "PENDING",
+      "commercial_acceptance": "BLOCKED"
+    },
+    {
+      "id": "ko-melotts-korean",
+      "locale": "ko-KR",
+      "engine": "MeloTTS",
+      "research_source": "https://huggingface.co/myshell-ai/MeloTTS-Korean",
+      "license_evidence": "https://huggingface.co/myshell-ai/MeloTTS-Korean",
+      "public_license_signal": "Upstream model card and MeloTTS project list MIT. Check weights, dependency provenance and the chosen voice before use.",
+      "readiness": "RESEARCH_ONLY",
+      "model_sha256": null,
+      "runtime_sha256": null,
+      "config_sha256": null,
+      "wav_sha256": null,
+      "windows_run_id": null,
+      "source_and_dependency_rights_review": "PENDING",
+      "male_voice_review": "PENDING",
+      "native_language_quality_review": "PENDING",
+      "commercial_acceptance": "BLOCKED"
+    }
+  ]
+}

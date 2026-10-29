@@ -33,6 +33,12 @@ jobs:
           $ErrorActionPreference = 'Stop'
           node --test studio_bao_v1/tests/studio_smoke.test.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check studio_bao_v1/voice/voice_candidate_gate.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test studio_bao_v1/tests/voice_candidate_gate.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node studio_bao_v1/voice/voice_candidate_gate.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Output "STUDIO_WINDOWS_QA_PASS"
       - name: Real Windows Chrome desktop/mobile E2E and screenshots
         shell: pwsh
