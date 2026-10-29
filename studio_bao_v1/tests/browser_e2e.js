@@ -71,7 +71,7 @@ async function main(){
   }
   if(data.method==="Network.requestWillBeSent"){
    const url=data.params?.request?.url||"";
-   if(!/^(file:|data:|about:|devtools:)/i.test(url))outbound.push(url);
+   if(!/^(file:|blob:|data:|about:|devtools:)/i.test(url))outbound.push(url);
   }
   if(data.method==="Runtime.exceptionThrown")errors.push(data.params?.exceptionDetails?.text||"JavaScript exception");
  });
