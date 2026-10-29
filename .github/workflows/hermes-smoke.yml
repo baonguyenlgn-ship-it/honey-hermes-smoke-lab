@@ -53,3 +53,24 @@ jobs:
           echo "Hermes CLI smoke: PASS"
           echo "upstream_commit=$actual_sha"
           deactivate
+  hermes-artifact-qa:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'hermes-lab/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Run focused artifact intake negative tests
+        shell: bash
+        run: python3 -m unittest hermes_worker_lab.tests.test_artifact_qa -v
+      - name: Verify actual artifact bytes and compile exact file
+        shell: bash
+        env:
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m hermes_worker_lab.artifact_qa --repo-root .
