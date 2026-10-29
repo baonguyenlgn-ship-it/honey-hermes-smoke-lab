@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Install pinned Hermes source and verify CLI
+      - name: Install pinned Hermes dev environment and verify CLI
         shell: bash
         run: |
           set -euo pipefail
@@ -20,8 +20,13 @@ jobs:
           git -C "$source_dir" checkout --detach FETCH_HEAD
           actual_sha="$(git -C "$source_dir" rev-parse HEAD)"
           test "$actual_sha" = "$expected_sha"
-          python3 -m venv "$RUNNER_TEMP/hermes-venv"
-          "$RUNNER_TEMP/hermes-venv/bin/python" -m pip install --disable-pip-version-check "$source_dir"
-          "$RUNNER_TEMP/hermes-venv/bin/hermes" --help
+          export HERMES_HOME="$RUNNER_TEMP/hermes-home"
+          export HERMES_RUNTIME_DIR="$RUNNER_TEMP/hermes-runtime"
+          mkdir -p "$HERMES_HOME" "$HERMES_RUNTIME_DIR"
+          unset GITHUB_TOKEN GH_TOKEN
+          cd "$source_dir"
+          source ./activate
+          hermes --help
           echo "Hermes CLI smoke: PASS"
           echo "upstream_commit=$actual_sha"
+          deactivate
