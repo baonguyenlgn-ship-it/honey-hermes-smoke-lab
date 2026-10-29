@@ -182,7 +182,8 @@ jobs:
           retention-days: 2
 
   supertonic3-onxx-fingerprint:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # SHA source validated in real Windows run 40958369591: 4/4; avoid repeated download.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 12
     steps:
@@ -211,5 +212,44 @@ jobs:
         with:
           name: honey-supertonic3-onxx-fingerprint
           path: ${{ runner.temp }}/honey-st3/st3-hashes.json
+          if-no-files-found: warn
+          retention-days: 2
+
+  supertonic3-m1-bilingual-cpu-lab:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Exact SHA read-only checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Stage SHA-pinned ONNX and generic VI KO M1 CPU speech
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'ST3_CPU_HEAD_MISMATCH'}
+          python --version
+          ./studio_bao_v1/voice/supertonic3_m1_windows.ps1 -Out "${{ runner.temp }}/honey-st3-m1"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Independent byte-level WAV and runtime-boundary QA
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/voice/supertonic3_m1_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_m1_check.js "${{ runner.temp }}/honey-st3-m1"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Remove-Item -LiteralPath "${{ runner.temp }}/honey-st3-m1/st3-m1-vi.wav" -Force
+          Remove-Item -LiteralPath "${{ runner.temp }}/honey-st3-m1/st3-m1-ko.wav" -Force
+      - name: Publish metadata only, no speech or weights
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: honey-supertonic3-m1-bilingual-cpu-metadata
+          path: |
+            ${{ runner.temp }}/honey-st3-m1/source-report.json
+            ${{ runner.temp }}/honey-st3-m1/inference.json
           if-no-files-found: warn
           retention-days: 2
