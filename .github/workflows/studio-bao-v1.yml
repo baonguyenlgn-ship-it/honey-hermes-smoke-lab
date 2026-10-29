@@ -1,0 +1,36 @@
+name: Honey Studio Bảo V1 — Windows Preview QA
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "studio_bao_v1/**"
+      - ".github/workflows/studio-bao-v1.yml"
+permissions:
+  contents: read
+jobs:
+  studio-windows-qa:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact studio PR head without persisting credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Check exact SHA and built-in Node runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}") { throw 'STUDIO_SHA_MISMATCH' }
+          node --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check studio_bao_v1/app.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run offline studio behavior and no-network boundary tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --test studio_bao_v1/tests/studio_smoke.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "STUDIO_WINDOWS_QA_PASS"
