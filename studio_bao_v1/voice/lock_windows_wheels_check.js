@@ -16,7 +16,10 @@ a.equal(r.fully_offline_install_pass,true);
 a.equal(r.production_supply_chain_approved,false);
 a.equal(r.model_or_audio_executed,false);
 a.equal(r.wheels_discarded,true);
-const lines=lock.trim().split("\n"),seen=new Set();
+const lines=lock.trim().split(/\r?\n/),seen=new Set();
+const committedLock=fs.readFileSync(path.join(__dirname,"requirements-win-py312-hashes.txt"),"utf8")
+  .trim().split(/\r?\n/);
+a.deepEqual(lines,committedLock,"GENERATED_LOCK_DIFFERS_FROM_COMMITTED_SHA256_PINS");
 a.equal(lines.length,10);
 let sum=0;
 for(const w of r.wheel_hashes){
