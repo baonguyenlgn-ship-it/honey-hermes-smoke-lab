@@ -46,6 +46,7 @@ class ArtifactFenceTests(unittest.TestCase):
             PAYLOAD,
             manifest(),
             expected_task_id=TASK,
+            expected_source_session="synthetic-session-01",
             expected_source_sha=SOURCE_SHA,
             expected_base_sha=BASE_SHA,
         )
@@ -57,6 +58,7 @@ class ArtifactFenceTests(unittest.TestCase):
                 b"X" + PAYLOAD[1:],
                 manifest(),
                 expected_task_id=TASK,
+                expected_source_session="synthetic-session-01",
                 expected_source_sha=SOURCE_SHA,
                 expected_base_sha=BASE_SHA,
             )
@@ -67,6 +69,7 @@ class ArtifactFenceTests(unittest.TestCase):
                 PAYLOAD,
                 manifest(size_bytes=len(PAYLOAD) + 1),
                 expected_task_id=TASK,
+                expected_source_session="synthetic-session-01",
                 expected_source_sha=SOURCE_SHA,
                 expected_base_sha=BASE_SHA,
             )
@@ -77,6 +80,7 @@ class ArtifactFenceTests(unittest.TestCase):
                 PAYLOAD,
                 manifest(),
                 expected_task_id="HERMES-LAB-AUTH-HANDOFF-OTHER",
+                expected_source_session="synthetic-session-01",
                 expected_source_sha=SOURCE_SHA,
                 expected_base_sha=BASE_SHA,
             )
@@ -87,6 +91,7 @@ class ArtifactFenceTests(unittest.TestCase):
                 PAYLOAD,
                 manifest(),
                 expected_task_id=TASK,
+                expected_source_session="synthetic-session-01",
                 expected_source_sha="c" * 40,
                 expected_base_sha=BASE_SHA,
             )
@@ -97,6 +102,7 @@ class ArtifactFenceTests(unittest.TestCase):
                 PAYLOAD,
                 manifest(),
                 expected_task_id=TASK,
+                expected_source_session="synthetic-session-01",
                 expected_source_sha=SOURCE_SHA,
                 expected_base_sha="c" * 40,
             )
@@ -112,9 +118,21 @@ class ArtifactFenceTests(unittest.TestCase):
                         PAYLOAD,
                         manifest(**changes),
                         expected_task_id=TASK,
+                        expected_source_session="synthetic-session-01",
                         expected_source_sha=SOURCE_SHA,
                         expected_base_sha=BASE_SHA,
                     )
+
+    def test_rejects_unassigned_source_session(self):
+        with self.assertRaisesRegex(ArtifactMismatch, "assigned Hermes session"):
+            verify_artifact(
+                PAYLOAD,
+                manifest(source_session="forged-session-99"),
+                expected_task_id=TASK,
+                expected_source_session="synthetic-session-01",
+                expected_source_sha=SOURCE_SHA,
+                expected_base_sha=BASE_SHA,
+            )
 
 
 class PublicationIdempotencyTests(unittest.TestCase):
@@ -132,7 +150,9 @@ class PublicationIdempotencyTests(unittest.TestCase):
         decision = decide_publication(
             manifest(),
             artifact_sha256=hashlib.sha256(PAYLOAD).hexdigest(),
-            existing_task=PublicationRecord(TASK, hashlib.sha256(PAYLOAD).hexdigest(), "d" * 40),
+            existing_task=PublicationRecord(
+                TASK, "synthetic-session-01", hashlib.sha256(PAYLOAD).hexdigest(), "d" * 40
+            ),
             existing_branch_commit="d" * 40,
         )
         self.assertEqual(decision.action, "already_published")
@@ -142,7 +162,7 @@ class PublicationIdempotencyTests(unittest.TestCase):
             decide_publication(
                 manifest(),
                 artifact_sha256="e" * 64,
-                existing_task=PublicationRecord(TASK, "f" * 64, "d" * 40),
+                existing_task=PublicationRecord(TASK, "synthetic-session-01", "f" * 64, "d" * 40),
                 existing_branch_commit="d" * 40,
             )
         with self.assertRaisesRegex(PublicationConflict, "refusing to overwrite"):
@@ -158,8 +178,21 @@ class PublicationIdempotencyTests(unittest.TestCase):
             decide_publication(
                 manifest(),
                 artifact_sha256=hashlib.sha256(PAYLOAD).hexdigest(),
-                existing_task=PublicationRecord(TASK, hashlib.sha256(PAYLOAD).hexdigest(), "d" * 40),
+                existing_task=PublicationRecord(
+                    TASK, "synthetic-session-01", hashlib.sha256(PAYLOAD).hexdigest(), "d" * 40
+                ),
                 existing_branch_commit="e" * 40,
+            )
+
+    def test_other_session_cannot_replay_task(self):
+        with self.assertRaisesRegex(PublicationConflict, "different publication data"):
+            decide_publication(
+                manifest(),
+                artifact_sha256=hashlib.sha256(PAYLOAD).hexdigest(),
+                existing_task=PublicationRecord(
+                    TASK, "forged-session-99", hashlib.sha256(PAYLOAD).hexdigest(), "d" * 40
+                ),
+                existing_branch_commit="d" * 40,
             )
 
 
@@ -168,6 +201,7 @@ class AuthorizationAndRedactionTests(unittest.TestCase):
         values = {
             "repository": "baonguyenlgn-ship-it/honey-hermes-smoke-lab",
             "permissions": REQUIRED_PERMISSIONS | {"metadata:read"},
+            "issued_at": NOW,
             "expires_at": NOW + timedelta(minutes=5),
             "issuer": "synthetic-broker",
         }
@@ -175,7 +209,9 @@ class AuthorizationAndRedactionTests(unittest.TestCase):
         return AuthorizationClaims(**values)
 
     def test_accepts_exact_repo_minimum_permissions_and_short_lifetime(self):
-        validate_authorization(self.claims(), now=NOW)
+        validate_authorization(
+            self.claims(expires_at=NOW + timedelta(minutes=10)), now=NOW
+        )
 
     def test_rejects_wrong_repo_broad_rights_and_expired_auth(self):
         for claims in [
@@ -183,6 +219,18 @@ class AuthorizationAndRedactionTests(unittest.TestCase):
             self.claims(permissions=ALLOWED_PERMISSIONS | {"administration:write"}),
             self.claims(permissions=frozenset({"contents:read", "metadata:read"})),
             self.claims(expires_at=NOW),
+        ]:
+            with self.subTest(claims=claims):
+                with self.assertRaises(AuthorizationRejected):
+                    validate_authorization(claims, now=NOW)
+
+    def test_rejects_overlong_and_future_issued_authorization(self):
+        for claims in [
+            self.claims(expires_at=NOW + timedelta(minutes=11)),
+            self.claims(
+                issued_at=NOW + timedelta(minutes=1),
+                expires_at=NOW + timedelta(minutes=5),
+            ),
         ]:
             with self.subTest(claims=claims):
                 with self.assertRaises(AuthorizationRejected):
