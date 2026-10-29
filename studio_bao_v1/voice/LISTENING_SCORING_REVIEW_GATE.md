@@ -1,0 +1,9 @@
+# Honey Studio Bảo V1 — metadata-only listening review intake engine
+
+This is an **isolated DEV/TEST screening tool, not an authorization to distribute audio or contact reviewers**. Read `listening_qa_protocol.json`: eight original generic Vietnamese/Korean scripts, proposal for two independent native reviewers per language and five 1–5 quality dimensions. `listening_qa_scoring_intake_template.json` is intentionally **EMPTY_UNAUTHORIZED**: no WAV, no hash of a real audio sample, no reviewer data, no outside access or permission.
+
+The new `listening_score_gate.js` can screen future redacted **metadata-only** reviewer forms, with these invariants: script digest and model revision pinned, per-sample audio hash references, allowed score vocabulary, bounded response counts, at least two distinct pseudonyms per sample, no reused reviewer IDs between languages, critical semantic-error detection, per-criterion medians, and reviewer disagreements that trigger independent adjudication. It rejects arbitrary free text and unknown keys to avoid leaking PII/URLs, and does not verify actual persons, hearing, consent or source audio provenance. Even a structurally complete screening candidate is **not** a genuine verified human result, and the module **never grants commercial/production release**.
+
+Tests exercise an entirely synthetic 16-score fixture (four virtual raters; no audio or persons), many tampered dossiers and three low-score/conflict scenarios. A green Windows run certifies only the triage logic. Future authorized listening would require proper time-limited access/owner approval, truly qualified independent listeners, informed consent, real media SHA, and outside authenticated provenance validation; no person may be recruited or privately shared audio by this PR.
+
+No media files, credentials, customer data, model runs, installations, paid services, release, deploy or merge. Keep previous expensive quality/model jobs frozen.

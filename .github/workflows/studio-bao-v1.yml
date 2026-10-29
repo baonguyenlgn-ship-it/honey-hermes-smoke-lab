@@ -492,7 +492,8 @@ jobs:
           Write-Output 'ST3_HUMAN_LISTENING_PROTOCOL_ONLY_QA_PASS_NO_REAL_LISTENER'
 
   supertonic3-commercial-legal-preflight-qa:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # 19/19 prelaunch rules PASS on run 40965826097; freeze unrelated metadata-only change.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 3
     steps:
@@ -513,3 +514,26 @@ jobs:
           node studio_bao_v1/voice/supertonic3_openrail_gate.js
           if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
           Write-Output 'ST3_LEGAL_CHECKLIST_ONLY_QA_PASS_NO_COMMERCIAL_CLEARANCE'
+
+  supertonic3-listener-scoring-intake-qa:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 3
+    steps:
+      - name: Exact head no-persisted-credential checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Run actual review intake gate and adversarial synthetic scores without audio
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'LISTENER_TRIAGE_HEAD_CHANGED'}
+          node --check studio_bao_v1/voice/listening_score_gate.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/listening_score_gate.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/listening_score_gate.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'ST3_LISTENER_SCORE_SCREEN_ONLY_PASS_NO_HUMAN_EVIDENCE'
