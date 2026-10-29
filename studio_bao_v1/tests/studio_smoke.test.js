@@ -291,7 +291,7 @@ test("local WAV + JSON controls are bound but not actual voice verification",()=
  assert.match(html,/id="verify-audio-btn"/);
  assert.match(html,/id="audio-verify-status"/);
  assert.match(html,/src="\.\/audio_timing\.js"/);
- assert.match(js,/MANUAL/);
+ assert.match(audioSource,/MANUAL_NOT_VERIFIED_WITH_SPEECH/);
  assert.ok(js.includes('verifiedAudio=null'));
  assert.ok(js.includes("importGeneration"));
  assert.doesNotMatch(audioSource,/fetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon/);
