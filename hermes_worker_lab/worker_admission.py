@@ -531,6 +531,8 @@ class DurableReplayLedger:
                     raise AdmissionDenied("COMPLETION_RECEIPT_CONFLICT")
                 db.execute("COMMIT")
             else:
+                if row["state"] != "effect_unknown":
+                    raise AdmissionDenied("PUBLICATION_GATE_NOT_ENTERED")
                 db.execute(
                     """UPDATE reservations SET state='completed', published_commit_sha=?,
                        published_pr_number=?, publication_receipt_sha256=? WHERE task_id=?""",
