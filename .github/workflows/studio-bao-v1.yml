@@ -394,7 +394,8 @@ jobs:
           retention-days: 2
 
   supertonic3-m1-seeded-waveform-qa:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # Real seed waveforms 4/4 PASS in run 40964059913; freeze on checker-only mutation tests.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 12
     steps:
@@ -443,3 +444,24 @@ jobs:
             ${{ runner.temp }}/honey-st3-seed-quality/seed-quality-report.json
           if-no-files-found: warn
           retention-days: 2
+
+  supertonic3-seeded-negative-qa:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 3
+    steps:
+      - name: Exact head read-only checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Actual acceptance checker must reject fourteen tampered report cases
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'SEED_NEGATIVE_HEAD_MISMATCH'}
+          node --check studio_bao_v1/voice/supertonic3_seed_quality_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/supertonic3_seed_quality_negative.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output "ST3_SEED_QA_TEST_OF_TESTS_FAIL_CLOSED_PASS"

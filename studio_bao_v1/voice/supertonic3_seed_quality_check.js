@@ -46,6 +46,11 @@ for(const item of r.language_results){
  }
 }
 a.deepEqual([...seen].sort(),["ko","vi"]);
+a.notEqual(
+ r.language_results.find(x=>x.language==="vi").trials[0].pcm_sha256,
+ r.language_results.find(x=>x.language==="ko").trials[0].pcm_sha256,
+ "TWO_DIFFERENT_LANGUAGES_CANNOT_SHARE_IDENTICAL_AUDIO"
+);
 for(const file of fs.readdirSync(root)){
  a.ok(!/\.(onnx|wav|whl)$/i.test(file),"AUDIO_OR_BINARY_MUST_NOT_BE_PUBLISHED");
 }
