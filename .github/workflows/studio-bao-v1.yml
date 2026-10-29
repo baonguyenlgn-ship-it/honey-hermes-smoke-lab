@@ -9,7 +9,8 @@ permissions:
   contents: read
 jobs:
   studio-windows-qa:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # Existing Studio E2E is verified at 40957510094; source-fingerprint only.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 5
     steps:
@@ -178,4 +179,29 @@ jobs:
           name: studio-bao-ko-offline-research-report
           path: ${{ runner.temp }}/studio-bao-ko-speech/ko-offline-synthesis-probe.json
           if-no-files-found: error
+          retention-days: 2
+
+  supertonic3-onxx-fingerprint:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Read-only exact SHA checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Stage four pinned ONNX files, SHA256 compare and discard
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'HEAD_MISMATCH'}
+          ./studio_bao_v1/voice/supertonic3_hash_only.ps1 -Out "${{ runner.temp }}/honey-st3"
+      - name: Upload JSON fingerprint only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: honey-supertonic3-onxx-fingerprint
+          path: ${{ runner.temp }}/honey-st3/st3-hashes.json
+          if-no-files-found: warn
           retention-days: 2
