@@ -272,7 +272,7 @@ test("manual timing gap incomplete coverage unsupported PCM fail closed",async()
  const wav=silentFixture(),manifest=fixtureManifest(wav),args={wavBytes:arrayBuffer(wav),language:"vi",product:"mango",beats:studio.STORYBOARD.vi.mango};
  const gap=manifest.cues.map((c,i)=>i===1?{...c,startMs:325}:c);
  await assert.rejects(audioTiming.verify({...args,manifest:{...manifest,cues:gap}}),/TIMING_GAP_OVERLAP_OR_BOUNDS/);
- const short=manifest.cues.map((c,i)=>i===2?{...c,endMs:900}:c);
+ const short=manifest.cues.map((c,i)=>i===2?{...c,endMs:950}:c);
  await assert.rejects(audioTiming.verify({...args,manifest:{...manifest,cues:short}}),/TIMING_INCOMPLETE/);
  const invalid=Buffer.from(wav);invalid.writeUInt16LE(24,34);
  assert.throws(()=>audioTiming.parseWav(arrayBuffer(invalid)),/WAV_PCM16_REQUIRED/);
