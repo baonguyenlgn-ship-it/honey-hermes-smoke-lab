@@ -384,6 +384,16 @@ class WorkerAdmissionTests(unittest.TestCase):
         self.assertFalse(self.reserve(restarted))
         self.assertEqual(restarted.get_task(TASK).state, "completed")
 
+    def test_reserved_task_cannot_complete_from_receipt_without_publish_gate(self):
+        ledger = DurableReplayLedger(self.db)
+        self.assertTrue(self.reserve(ledger))
+        with self.assertRaisesRegex(AdmissionDenied, "PUBLICATION_GATE_NOT_ENTERED"):
+            ledger.acknowledge_publication(
+                TASK, b"fake-github-receipt",
+                SyntheticPublicationVerifier(self.published_effect()),
+            )
+        self.assertEqual(ledger.get_task(TASK).state, "reserved")
+
     def test_missing_or_mismatched_external_receipt_cannot_complete_task(self):
         ledger = DurableReplayLedger(self.db)
         self.reserve(ledger)
