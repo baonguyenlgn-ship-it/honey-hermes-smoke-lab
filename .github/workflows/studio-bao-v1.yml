@@ -50,3 +50,37 @@ jobs:
           path: ${{ runner.temp }}/honey-studio-bao-v1/*.png
           if-no-files-found: ignore
           retention-days: 2
+
+  windows-offline-tts-capability-probe:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 6
+    steps:
+      - name: Checkout exact Studio PR head with read-only job token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: SAPI speech voice inventory and bounded offline sample
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}") { throw 'PROBE_HEAD_SHA_MISMATCH' }
+          & ./studio_bao_v1/tests/offline_tts_probe.ps1 -OutputDir "${{ runner.temp }}/studio-bao-tts"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify source WAV bytes, waveform and fail-closed voice availability
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --check studio_bao_v1/tests/offline_tts_check.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node studio_bao_v1/tests/offline_tts_check.js "${{ runner.temp }}/studio-bao-tts"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish metadata-only capability report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: studio-bao-v1-offline-tts-capability-report
+          path: ${{ runner.temp }}/studio-bao-tts/offline-tts-probe.json
+          if-no-files-found: ignore
+          retention-days: 2
