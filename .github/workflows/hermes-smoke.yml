@@ -1,10 +1,33 @@
-name: Hermes CLI smoke
+name: Hermes LAB QA
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "hermes_worker_lab/**"
+      - ".github/workflows/hermes-smoke.yml"
 permissions:
   contents: read
 jobs:
+  hermes-contract-qa:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'hermes-lab/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Run isolated worker contract QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s hermes_worker_lab -t . -v
+          python3 -m py_compile hermes_worker_lab/worker_admission.py hermes_worker_lab/tests/test_worker_admission.py
   hermes-cli-smoke:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
