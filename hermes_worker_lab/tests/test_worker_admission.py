@@ -272,6 +272,10 @@ class WorkerAdmissionTests(unittest.TestCase):
         self.assertEqual(result.state, "completed")
         self.assertEqual(result.commit_sha, "e" * 40)
         self.assertEqual(result.pr_number, 6)
+        replayed_ack = restarted.acknowledge_publication(
+            TASK, b"fake-github-receipt", verifier,
+        )
+        self.assertEqual(replayed_ack.state, "completed")
         self.assertFalse(self.reserve(restarted))
         self.assertEqual(restarted.get_task(TASK).state, "completed")
 
@@ -280,6 +284,8 @@ class WorkerAdmissionTests(unittest.TestCase):
         self.reserve(ledger)
         ledger.begin_publication(TASK)
 
+        with self.assertRaisesRegex(AdmissionDenied, "AUTHENTICATED_PUBLICATION_RECEIPT_REQUIRED"):
+            ledger.acknowledge_publication(TASK, b"fake-github-receipt", None)
         with self.assertRaisesRegex(AdmissionDenied, "AUTHENTICATED_PUBLICATION_RECEIPT_REQUIRED"):
             ledger.acknowledge_publication(
                 TASK, b"fake-github-receipt", SyntheticPublicationVerifier(None),
