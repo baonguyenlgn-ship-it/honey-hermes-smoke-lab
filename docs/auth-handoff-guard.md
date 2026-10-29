@@ -6,7 +6,8 @@ branch or pull request. Its fixtures are synthetic.
 
 ## What it fences
 
-- Exact task ID, Hermes source session, pinned source commit, LAB base commit,
+- Exact task ID, Hermes source session matched against the independently assigned
+  session ID, pinned source commit, LAB base commit,
   safe filename, byte count, SHA-256, and task-specific branch name.
 - A duplicate task with the same artifact and commit is a no-op. A reused task
   ID with changed data, an occupied task branch, or a mismatch between the task
@@ -14,13 +15,17 @@ branch or pull request. Its fixtures are synthetic.
 - Non-secret authorization claims must identify only
   `baonguyenlgn-ship-it/honey-hermes-smoke-lab`, expire in the future, and grant
   only `contents:write`, `pull_requests:write`, and optional `metadata:read`.
+  The issue/expiry timestamps are limited to a 10-minute grant lifetime.
 - Known secret values, GitHub token forms, and PEM private-key blocks are
   redacted from diagnostic text.
 
 ## Security boundary
 
-`AuthorizationClaims` contains claims only; it must be populated by a trusted,
-provider-verified credential broker. Never pass a bearer token, PAT, OAuth
+`expected_source_session` must come from the authenticated task assignment, not
+from the artifact manifest. `AuthorizationClaims` contains claims only; its
+issue/expiry timestamps and permissions must come from a trusted, provider-
+verified credential broker. The harness cannot prove that provenance. Never
+pass a bearer token, PAT, OAuth
 refresh token, or app private key into this module. This local harness does not
 prove the actual permissions of any token and cannot publish. A publisher must
 re-read the target repository and base SHA immediately before writing, use a
