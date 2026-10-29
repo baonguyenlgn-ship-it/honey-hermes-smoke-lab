@@ -123,11 +123,11 @@ async function main(){
  };
  await evaluate("document.getElementById('export-srt-btn').click();true");
  const srtData=await waitDownload("honey-bao-v1-mango-vi-demo.srt");
- assert.match(srtData,/^1\\n00:00:00,000 --> 00:00:09,000/);
- assert.match(srtData,/\\n\\n3\\n00:00:20,000 --> 00:00:30,000/);
+ assert.match(srtData,/^1\n00:00:00,000 --> 00:00:09,000/);
+ assert.match(srtData,/\n\n3\n00:00:20,000 --> 00:00:30,000/);
  await evaluate("document.getElementById('export-vtt-btn').click();true");
  const vttData=await waitDownload("honey-bao-v1-mango-vi-demo.vtt");
- assert.match(vttData,/^WEBVTT\\n\\n00:00:00.000 --> 00:00:09.000/);
+ assert.match(vttData,/^WEBVTT\n\n00:00:00.000 --> 00:00:09.000/);
  assert.ok(!vttData.includes("http:"));
  console.log("BROWSER_LOCAL_CAPTION_DOWNLOADS=SRT_VTT_PASS");
  await evaluate("(()=>{let s=document.getElementById('lang');s.value='ko';s.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
