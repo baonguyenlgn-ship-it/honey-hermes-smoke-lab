@@ -197,6 +197,14 @@ jobs:
           $ErrorActionPreference='Stop'
           if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'HEAD_MISMATCH'}
           ./studio_bao_v1/voice/supertonic3_hash_only.ps1 -Out "${{ runner.temp }}/honey-st3"
+      - name: Independently inspect manifest, report, and cleanup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/voice/supertonic3_hash_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_hash_check.js "${{ runner.temp }}/honey-st3"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
       - name: Upload JSON fingerprint only
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

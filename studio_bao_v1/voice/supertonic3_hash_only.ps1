@@ -4,7 +4,7 @@ $ProgressPreference='SilentlyContinue'
 New-Item -ItemType Directory -Path $Out -Force | Out-Null
 $m=Get-Content (Join-Path $PSScriptRoot 'supertonic3_official_digests.json') -Raw | ConvertFrom-Json
 if($m.revision -ne '3cadd1ee6394adea1bd021217a0e650ede09a323' -or $m.assets.Count -ne 4){throw 'MANIFEST_INVALID'}
-$r=[ordered]@{status='NOT_PROVEN';revision=$m.revision;files=@();bytes=0;executed=$false;audio=$false;commercial=false;error_type=$null}
+$r=[ordered]@{status='NOT_PROVEN';revision=$m.revision;files=@();bytes=0;executed=$false;audio=$false;commercial=$false;error_type=$null}
 $e=$null
 try {
  foreach($a in $m.assets) {
@@ -34,3 +34,5 @@ try {
  Write-Output ('SUPER3_STAGE='+$r.status+' COUNT='+$r.files.Count)
 }
 if($e){throw $e}
+Write-Output 'SUPER3_SOURCE_HASH_RUN_COMPLETED'
+exit 0
