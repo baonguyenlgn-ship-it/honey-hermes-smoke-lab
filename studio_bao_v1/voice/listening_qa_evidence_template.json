@@ -1,0 +1,16 @@
+{
+  "schema": "honey.st3-native-listening-evidence.v1",
+  "status": "NOT_PROVEN",
+  "protocol": "studio_bao_v1/voice/listening_qa_protocol.json",
+  "authorized_audio_sample_hashes": [],
+  "reviewers": [],
+  "review_sessions": [],
+  "reviewer_consent_verified": false,
+  "audible_sample_access_authorized": false,
+  "native_qualification_verified": false,
+  "critical_errors_reviewed": false,
+  "independent_signoff": false,
+  "deployment_authorized": false,
+  "automated_quality_pass": false,
+  "notes": "Intentionally empty intake. No human actually listened. Never fill scores from waveform statistics or synthetic reports."
+}

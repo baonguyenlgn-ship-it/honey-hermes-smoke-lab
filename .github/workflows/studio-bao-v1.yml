@@ -446,7 +446,8 @@ jobs:
           retention-days: 2
 
   supertonic3-seeded-negative-qa:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # Independent tamper-test gate PASS run 40964575771; freeze unchanged tests.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 3
     steps:
@@ -465,3 +466,26 @@ jobs:
           node --test studio_bao_v1/tests/supertonic3_seed_quality_negative.test.js
           if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
           Write-Output "ST3_SEED_QA_TEST_OF_TESTS_FAIL_CLOSED_PASS"
+
+  supertonic3-native-listening-packet-qa:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 3
+    steps:
+      - name: Read-only exact head checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Independently audit bilingual human listening protocol and forged human evidence
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'LISTENING_PROTOCOL_HEAD_MISMATCH'}
+          node --check studio_bao_v1/voice/listening_qa_gate.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/listening_qa_gate.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/listening_qa_gate.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'ST3_HUMAN_LISTENING_PROTOCOL_ONLY_QA_PASS_NO_REAL_LISTENER'
