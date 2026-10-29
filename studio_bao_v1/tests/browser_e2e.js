@@ -110,6 +110,26 @@ async function main(){
  assert.ok(desktop.content<=desktop.viewport+1,"DESKTOP_HORIZONTAL_OVERFLOW: "+JSON.stringify(desktop));
  assert.equal(desktop.products,3);
  const desktopScreenshot=await shot("desktop-1440");
+ const downloads=path.join(screenshots,"downloads");
+ fs.mkdirSync(downloads,{recursive:true});
+ await send("Browser.setDownloadBehavior",{behavior:"allow",downloadPath:downloads,eventsEnabled:true});
+ const waitDownload=async name=>{
+  const outputPath=path.join(downloads,name);
+  for(let n=0;n<100;n++){
+   if(fs.existsSync(outputPath)&&fs.statSync(outputPath).size>20)return fs.readFileSync(outputPath,"utf8");
+   await sleep(100);
+  }
+  throw new Error("BROWSER_CAPTION_DOWNLOAD_MISSING: "+name);
+ };
+ await evaluate("document.getElementById('export-srt-btn').click();true");
+ const srtData=await waitDownload("honey-bao-v1-mango-vi-demo.srt");
+ assert.match(srtData,/^1\\n00:00:00,000 --> 00:00:09,000/);
+ assert.match(srtData,/\\n\\n3\\n00:00:20,000 --> 00:00:30,000/);
+ await evaluate("document.getElementById('export-vtt-btn').click();true");
+ const vttData=await waitDownload("honey-bao-v1-mango-vi-demo.vtt");
+ assert.match(vttData,/^WEBVTT\\n\\n00:00:00.000 --> 00:00:09.000/);
+ assert.ok(!vttData.includes("http:"));
+ console.log("BROWSER_LOCAL_CAPTION_DOWNLOADS=SRT_VTT_PASS");
  await evaluate("(()=>{let s=document.getElementById('lang');s.value='ko';s.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
  assert.equal(await evaluate("document.getElementById('script-content').textContent.includes('망고')"),true);
  assert.equal(await evaluate("document.getElementById('stage-heading').textContent"),"디지털 진행자");
@@ -161,7 +181,7 @@ async function main(){
  console.log("BROWSER_DESKTOP="+JSON.stringify(desktop));
  console.log("BROWSER_MOBILE="+JSON.stringify(mobileSizes));
  console.log("BROWSER_DESKTOP_SCREENSHOT="+JSON.stringify(desktopScreenshot));
- console.log("BROWSER_REAL_INTERACTIONS=ko-language,storyboard-3-beats,prev-next-limits,play,pause-reset,product-switch,mock-reply,mock-draft");
+ console.log("BROWSER_REAL_INTERACTIONS=local-SRT-VTT-downloads,ko-language,storyboard-3-beats,prev-next-limits,play,pause-reset,product-switch,mock-reply,mock-draft");
  console.log("BROWSER_NETWORK=NO_EXTERNAL_REQUESTS");
  console.log("STUDIO_BROWSER_WINDOWS_PASS");
 }

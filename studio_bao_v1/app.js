@@ -91,6 +91,7 @@ const STORYBOARD = Object.freeze({
   pomelo: Object.freeze([{script:COPY.zh.scripts.pomelo,subtitle:COPY.zh.subtitles.pomelo},{"script":"越南柚子的大小与规格有所不同。本预览不保证实时库存。","subtitle":"柚子：请确认大小和规格。"},{"script":"配送地址及快递日期须由员工确认。本界面只生成模拟草稿。","subtitle":"柚子配送须由员工确认。"}]),
  }),
 });
+const EXPORT_UI = Object.freeze({"vi":{"title":"PHỤ ĐỀ · MỐC THỜI GIAN ƯỚC TÍNH","desc":"30 giây DEMO · chưa đồng bộ giọng nói/video","srt":"Xuất SRT","vtt":"Xuất VTT"},"ko":{"title":"자막 · 예상 타임코드","desc":"30초 데모 · 실제 음성/영상과 미동기화","srt":"SRT 내보내기","vtt":"VTT 내보내기"},"en":{"title":"SUBTITLES · ESTIMATED TIMING","desc":"30-second DEMO · not synced to voice/video","srt":"Export SRT","vtt":"Export VTT"},"zh":{"title":"字幕 · 估算时间码","desc":"30秒演示 · 未与真实语音/视频同步","srt":"导出 SRT","vtt":"导出 VTT"}});
 function initialState(){return {language:"vi",product:"mango",playing:false,sceneIndex:0,replied:false,draftCount:0};}
 function transition(state,action){
   if(!state || !action || typeof action.type!=="string")throw new Error("BAD_DEMO_ACTION");
@@ -131,6 +132,9 @@ function mount(doc){
   set("subtitle",m.subtitle);set("play-copy",m.playText);
   set("scene-caption",m.sceneLabel+" · "+m.sceneTitle);
   set("scene-counter",m.sceneCounter);
+  const exportText=EXPORT_UI[state.language];
+  set("export-title",exportText.title);set("export-note",exportText.desc);
+  set("srt-label",exportText.srt);set("vtt-label",exportText.vtt);
   set("prev-scene-copy",m.prevSceneLabel);set("next-scene-copy",m.nextSceneLabel);
   get("prev-scene-btn").disabled=m.previousDisabled;
   get("next-scene-btn").disabled=m.nextDisabled;
@@ -154,6 +158,16 @@ function mount(doc){
  get("play-btn").addEventListener("click",()=>dispatch({type:"PLAY"}));
  get("reset-btn").addEventListener("click",()=>dispatch({type:"RESET"}));
  get("prev-scene-btn").addEventListener("click",()=>dispatch({type:"PREV_SCENE"}));
+ const exportCaptions=format=>{
+  const media=BaoSubtitles.createExport({beats:STORYBOARD[state.language][state.product],language:state.language,product:state.product,format});
+  const objectUrl=URL.createObjectURL(new Blob([media.text],{type:media.mime}));
+  const anchor=doc.createElement("a");
+  anchor.href=objectUrl;anchor.download=media.filename;
+  doc.body.appendChild(anchor);anchor.click();anchor.remove();
+  setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
+ };
+ get("export-srt-btn").addEventListener("click",()=>exportCaptions("srt"));
+ get("export-vtt-btn").addEventListener("click",()=>exportCaptions("vtt"));
  get("next-scene-btn").addEventListener("click",()=>dispatch({type:"NEXT_SCENE"}));
  get("reply-btn").addEventListener("click",()=>dispatch({type:"REPLY"}));
  get("draft-btn").addEventListener("click",()=>dispatch({type:"DRAFT"}));

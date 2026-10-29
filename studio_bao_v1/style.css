@@ -78,3 +78,18 @@ footer{display:flex;gap:10px;justify-content:space-between;color:#647b88;font-si
  .scene-meta{min-width:68px}
  .scene-meta span{font-size:8px;letter-spacing:0;max-width:82px}
 }
+
+/* Timing export is offline and never claims synchronized video or voice. */
+.subtitle-export{display:flex;justify-content:space-between;gap:12px;align-items:center;border-top:1px solid #2a424d;padding:13px 0 0;margin-top:12px}
+.export-info{display:flex;flex-direction:column;gap:5px;min-width:0}
+.export-info strong{font-size:10px;color:#ecc89b;letter-spacing:.7px}
+.export-info span{font-size:10px;color:#89a0aa;line-height:1.4}
+.export-actions{display:flex;gap:8px;flex-shrink:0}
+.export-btn{min-height:44px;padding:9px 10px;background:#182f3a;border:1px solid #4e6974;border-radius:8px;color:#eddec6;font-size:11px;font-weight:700;white-space:nowrap}
+.export-btn:hover{border-color:#d9b281}
+@media(max-width:690px){
+ .subtitle-export{flex-direction:column;align-items:stretch;gap:10px}
+ .export-actions{display:grid;grid-template-columns:1fr 1fr}
+ .export-btn{width:100%}
+ .export-info strong{font-size:9px}
+}

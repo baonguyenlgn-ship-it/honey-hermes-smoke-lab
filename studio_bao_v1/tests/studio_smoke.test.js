@@ -4,10 +4,12 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const studio = require("../app.js");
+const captions = require("../subtitles.js");
 const root = path.resolve(__dirname,"..");
 const html = fs.readFileSync(path.join(root,"index.html"),"utf8");
 const css = fs.readFileSync(path.join(root,"style.css"),"utf8");
 const js = fs.readFileSync(path.join(root,"app.js"),"utf8");
+const subtitleSource = fs.readFileSync(path.join(root,"subtitles.js"),"utf8");
 
 test("all preview assets are standalone UTF-8 text",()=>{
  assert.ok(html.startsWith("<!doctype html>"));
@@ -37,7 +39,7 @@ test("browser loads only local CSS and JS resources",()=>{
  assert.doesNotMatch(css,/@import\s+url\(['"]?https?:/i);
 });
 test("no real broadcast, storage, network calls or external sends",()=>{
- for(const source of [html,js]){
+ for(const source of [html,js,subtitleSource]){
   assert.doesNotMatch(source,/\bfetch\s*\(/);
   assert.doesNotMatch(source,/\bXMLHttpRequest\b|\bWebSocket\b|\bsendBeacon\s*\(/);
   assert.doesNotMatch(source,/\blocalStorage\b|\bsessionStorage\b/);
@@ -172,4 +174,53 @@ test("navigation controls are present and mock-only",()=>{
  for(const id of ["prev-scene-btn","next-scene-btn","scene-counter","scene-caption"])
   assert.ok(html.includes('id="'+id+'"'),id);
  assert.ok(html.includes("Demo storyboard scenes"));
+});
+
+test("timecode formatting for SRT and VTT is locale-independent",()=>{
+ assert.equal(captions.clock(0,"srt"),"00:00:00,000");
+ assert.equal(captions.clock(9000,"vtt"),"00:00:09.000");
+ assert.equal(captions.clock(30000,"srt"),"00:00:30,000");
+ assert.throws(()=>captions.clock(-1,"srt"),/BAD_TIMECODE_MS/);
+});
+test("all 12 product-language combinations export 3 contiguous nonoverlapping timed cues",()=>{
+ for(const language of studio.LANGS)for(const product of studio.PRODUCTS){
+  for(const format of ["srt","vtt"]){
+   const report=captions.createExport({beats:studio.STORYBOARD[language][product],language,product,format});
+   assert.match(report.filename,/^honey-bao-v1-(mango|coconut|pomelo)-(vi|ko|en|zh)-demo\.(srt|vtt)$/);
+   assert.equal(report.cues.length,3);
+   assert.equal(report.estimatedTotalMs,30000);
+   assert.equal(report.cues[0].startMs,0);
+   assert.equal(report.cues[0].endMs,report.cues[1].startMs);
+   assert.equal(report.cues[1].endMs,report.cues[2].startMs);
+   assert.equal(report.cues[2].endMs,30000);
+   assert.ok(report.text.includes(" --> "));
+   assert.ok(report.text.includes(studio.STORYBOARD[language][product][1].subtitle));
+   assert.equal(report.disclaimer,"DEMO_ESTIMATED_TIME_NOT_AUDIO_SYNC");
+  }
+ }
+});
+test("SRT and WebVTT are standard plain-text caption formats",()=>{
+ const beats=studio.STORYBOARD.vi.mango;
+ const srt=captions.createExport({beats,language:"vi",product:"mango",format:"srt"}).text;
+ const vtt=captions.createExport({beats,language:"vi",product:"mango",format:"vtt"}).text;
+ assert.match(srt,/^1\n00:00:00,000 --> 00:00:09,000\n/);
+ assert.match(srt,/\n\n2\n00:00:09,000 --> 00:00:20,000\n/);
+ assert.match(srt,/\n\n3\n00:00:20,000 --> 00:00:30,000\n/);
+ assert.match(vtt,/^WEBVTT\n\n00:00:00.000 --> 00:00:09.000\n/);
+ assert.equal(vtt.includes("00:00:00,000"),false);
+});
+test("untrusted text, invalid export scopes, or malformed cue arrays fail closed",()=>{
+ const base=studio.STORYBOARD.vi.mango;
+ assert.throws(()=>captions.createExport({beats:base,language:"ru",product:"mango",format:"srt"}),/BAD_EXPORT_SCOPE/);
+ assert.throws(()=>captions.createExport({beats:base,language:"vi",product:"mango",format:"exe"}),/BAD_EXPORT_SCOPE/);
+ assert.throws(()=>captions.buildCues([{subtitle:"hello"}]),/BAD_STORYBOARD_BEATS/);
+ assert.throws(()=>captions.buildCues(base.map(x=>({subtitle:x.subtitle+"\nX"}))),/UNSAFE_SUBTITLE_TEXT/);
+ assert.throws(()=>captions.buildCues(base.map(x=>({subtitle:x.subtitle+" -->"}))),/UNSAFE_SUBTITLE_TEXT/);
+});
+test("export control is available offline, clearly DEMO and not an audio sync claim",()=>{
+ assert.ok(html.includes('id="export-srt-btn"'));
+ assert.ok(html.includes('id="export-vtt-btn"'));
+ assert.ok(html.includes('src="./subtitles.js"'));
+ assert.ok(html.includes("chưa đồng bộ giọng nói/video"));
+ assert.ok(subtitleSource.includes("DEMO_ESTIMATED_TIME_NOT_AUDIO_SYNC"));
 });
