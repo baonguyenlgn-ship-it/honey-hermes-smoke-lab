@@ -37,7 +37,7 @@ async function main(){
   if(processHandle.exitCode!==null)throw new Error("BROWSER_EXIT_"+processHandle.exitCode);
   const f=path.join(profile,"DevToolsActivePort");
   if(fs.existsSync(f)){
-   const n=Number(fs.readFileSync(f,"utf8").split(/\\r?\\n/)[0]);
+   const n=Number(fs.readFileSync(f,"utf8").split(String.fromCharCode(10))[0]);
    if(Number.isInteger(n)&&n>0){port=n;break;}
   }
   await sleep(250);
