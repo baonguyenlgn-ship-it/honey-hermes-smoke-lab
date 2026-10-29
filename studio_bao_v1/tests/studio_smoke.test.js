@@ -283,3 +283,22 @@ test("audio contract has no network and explicitly rejects voice/rights certific
  assert.match(code,/MANUAL_NOT_VERIFIED_WITH_SPEECH/);
  assert.match(code,/rights:"NOT_VERIFIED"/);
 });
+
+test("local WAV + JSON controls are bound but not actual voice verification",()=>{
+ const audioSource=fs.readFileSync(path.join(root,"audio_timing.js"),"utf8");
+ assert.match(html,/id="audio-wav-input"/);
+ assert.match(html,/id="audio-json-input"/);
+ assert.match(html,/id="verify-audio-btn"/);
+ assert.match(html,/id="audio-verify-status"/);
+ assert.match(html,/src="\.\/audio_timing\.js"/);
+ assert.match(js,/MANUAL/);
+ assert.ok(js.includes('verifiedAudio=null'));
+ assert.ok(js.includes("importGeneration"));
+ assert.doesNotMatch(audioSource,/fetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon/);
+});
+test("manual-bound caption export must never silently advertise audio/video alignment",()=>{
+ assert.ok(js.includes("-wav-matched-manual-not-synced."));
+ assert.ok(js.includes('verifiedAudio.cues'));
+ assert.ok(js.includes("AUDIO_UI"));
+ assert.equal(Object.keys(studio.STORYBOARD).length,4);
+});

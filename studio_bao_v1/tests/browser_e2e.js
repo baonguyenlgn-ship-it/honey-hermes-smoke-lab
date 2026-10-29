@@ -130,6 +130,47 @@ async function main(){
  assert.match(vttData,/^WEBVTT\n\n00:00:00.000 --> 00:00:09.000/);
  assert.ok(!vttData.includes("http:"));
  console.log("BROWSER_LOCAL_CAPTION_DOWNLOADS=SRT_VTT_PASS");
+
+ /* Supply 1-second synthetic silent PCM WAV + exact JSON cues entirely inside Chrome. */
+ const pcm=Buffer.alloc(44+16000);
+ pcm.write("RIFF",0);pcm.writeUInt32LE(pcm.length-8,4);pcm.write("WAVE",8);
+ pcm.write("fmt ",12);pcm.writeUInt32LE(16,16);pcm.writeUInt16LE(1,20);
+ pcm.writeUInt16LE(1,22);pcm.writeUInt32LE(8000,24);pcm.writeUInt32LE(16000,28);
+ pcm.writeUInt16LE(2,32);pcm.writeUInt16LE(16,34);pcm.write("data",36);pcm.writeUInt32LE(16000,40);
+ const sha=createHash("sha256").update(pcm).digest("hex");
+ const captionsForWav=await evaluate("STORYBOARD.vi.mango.map(x=>x.subtitle)");
+ const manifest={version:1,method:"manual_unverified_alignment",language:"vi",product:"mango",
+  sha256:sha,durationMs:1000,cues:[
+    {startMs:0,endMs:300,text:captionsForWav[0]},
+    {startMs:300,endMs:700,text:captionsForWav[1]},
+    {startMs:700,endMs:1000,text:captionsForWav[2]}
+  ]};
+ async function installSyntheticFiles(localManifest){
+  const expression="(()=>{"
+   +"const wavBinary=atob("+JSON.stringify(pcm.toString("base64"))+");"
+   +"const wav=Uint8Array.from(wavBinary,c=>c.charCodeAt(0));"
+   +"const w=new DataTransfer();w.items.add(new File([wav],'test-silent.wav',{type:'audio/wav'}));"
+   +"const j=new DataTransfer();j.items.add(new File(["+JSON.stringify(JSON.stringify(localManifest))+"],'manual.json',{type:'application/json'}));"
+   +"document.getElementById('audio-wav-input').files=w.files;"
+   +"document.getElementById('audio-json-input').files=j.files;return true;})()";
+  assert.equal(await evaluate(expression),true);
+ }
+ assert.equal(await evaluate("!!globalThis.crypto && !!globalThis.crypto.subtle"),true,
+  "CHROME_FILE_ORIGIN_WEBCRYPTO_NOT_AVAILABLE");
+ await installSyntheticFiles(manifest);
+ await evaluate("document.getElementById('verify-audio-btn').click();true");
+ await until("document.getElementById('audio-verify-status').textContent.includes('SHA-256')");
+ await evaluate("document.getElementById('export-vtt-btn').click();true");
+ const wavBoundVtt=await waitDownload("honey-bao-v1-mango-vi-wav-matched-manual-not-synced.vtt");
+ assert.match(wavBoundVtt,/00:00:00.700 --> 00:00:01.000/);
+ await installSyntheticFiles({...manifest,sha256:"0".repeat(64)});
+ await evaluate("document.getElementById('verify-audio-btn').click();true");
+ await until("document.getElementById('audio-verify-status').textContent.includes('WAV_SHA_MISMATCH')");
+ await evaluate("document.getElementById('export-srt-btn').click();true");
+ const revertedSrt=await waitDownload("honey-bao-v1-mango-vi-demo.srt");
+ assert.match(revertedSrt,/00:00:20,000 --> 00:00:30,000/);
+ console.log("BROWSER_LOCAL_AUDIO_WAV_SHA_VERIFIED_SYNTHETIC_SILENCE_ONLY");
+
  await evaluate("(()=>{let s=document.getElementById('lang');s.value='ko';s.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
  assert.equal(await evaluate("document.getElementById('script-content').textContent.includes('망고')"),true);
  assert.equal(await evaluate("document.getElementById('stage-heading').textContent"),"디지털 진행자");
@@ -181,7 +222,7 @@ async function main(){
  console.log("BROWSER_DESKTOP="+JSON.stringify(desktop));
  console.log("BROWSER_MOBILE="+JSON.stringify(mobileSizes));
  console.log("BROWSER_DESKTOP_SCREENSHOT="+JSON.stringify(desktopScreenshot));
- console.log("BROWSER_REAL_INTERACTIONS=local-SRT-VTT-downloads,ko-language,storyboard-3-beats,prev-next-limits,play,pause-reset,product-switch,mock-reply,mock-draft");
+ console.log("BROWSER_REAL_INTERACTIONS=local-WAV-JSON-synthetic-sha-guard,local-SRT-VTT-downloads,ko-language,storyboard-3-beats,prev-next-limits,play,pause-reset,product-switch,mock-reply,mock-draft");
  console.log("BROWSER_NETWORK=NO_EXTERNAL_REQUESTS");
  console.log("STUDIO_BROWSER_WINDOWS_PASS");
 }

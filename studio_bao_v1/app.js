@@ -92,6 +92,7 @@ const STORYBOARD = Object.freeze({
  }),
 });
 const EXPORT_UI = Object.freeze({"vi":{"title":"PHỤ ĐỀ · MỐC THỜI GIAN ƯỚC TÍNH","desc":"30 giây DEMO · chưa đồng bộ giọng nói/video","srt":"Xuất SRT","vtt":"Xuất VTT"},"ko":{"title":"자막 · 예상 타임코드","desc":"30초 데모 · 실제 음성/영상과 미동기화","srt":"SRT 내보내기","vtt":"VTT 내보내기"},"en":{"title":"SUBTITLES · ESTIMATED TIMING","desc":"30-second DEMO · not synced to voice/video","srt":"Export SRT","vtt":"Export VTT"},"zh":{"title":"字幕 · 估算时间码","desc":"30秒演示 · 未与真实语音/视频同步","srt":"导出 SRT","vtt":"导出 VTT"}});
+const AUDIO_UI = Object.freeze({"vi":{"title":"KIỂM TRA WAV VÀ MỐC THỜI GIAN","hint":"File cục bộ · không tải lên mạng · chưa xác thực giọng nói","verify":"Kiểm tra WAV + JSON","idle":"Chưa có WAV được xác minh","working":"Đang kiểm tra file cục bộ…","valid":"WAV SHA-256 khớp · mốc do người nhập, CHƯA xác minh âm thanh/lời nói/quyền sử dụng","invalid":"Từ chối file: "},"ko":{"title":"WAV 및 자막 타임코드 검증","hint":"로컬 파일만 · 전송 없음 · 음성 검증 아님","verify":"WAV + JSON 검증","idle":"검증된 WAV 없음","working":"로컬 파일 검증 중…","valid":"WAV SHA-256 일치 · 수동 시간, 음성 정렬/권리 미검증","invalid":"파일 거부: "},"en":{"title":"WAV + CAPTION TIMING INTAKE","hint":"Local files only · no upload · speech not verified","verify":"Verify WAV + JSON","idle":"No WAV verified","working":"Checking local files…","valid":"WAV SHA-256 matches · manual timing only; speech/rights NOT verified","invalid":"File rejected: "},"zh":{"title":"WAV 和字幕时间码验证","hint":"仅本地文件 · 不上传 · 不验证语音","verify":"验证 WAV + JSON","idle":"尚无已验证 WAV","working":"正在检查本地文件…","valid":"WAV SHA-256 匹配；手动时间码，未验证语音同步/版权","invalid":"文件被拒绝："}});
 function initialState(){return {language:"vi",product:"mango",playing:false,sceneIndex:0,replied:false,draftCount:0};}
 function transition(state,action){
   if(!state || !action || typeof action.type!=="string")throw new Error("BAD_DEMO_ACTION");
@@ -122,6 +123,9 @@ function viewModel(state){
 }
 function mount(doc){
  let state=initialState();
+ let verifiedAudio=null;
+ let audioStatus={kind:"idle"};
+ let importGeneration=0;
  const get=id=>doc.getElementById(id);
  const set=(id,value)=>{const el=get(id);if(el)el.textContent=String(value);};
  function render(){
@@ -132,6 +136,14 @@ function mount(doc){
   set("subtitle",m.subtitle);set("play-copy",m.playText);
   set("scene-caption",m.sceneLabel+" · "+m.sceneTitle);
   set("scene-counter",m.sceneCounter);
+  const audioLabel=AUDIO_UI[state.language];
+  set("audio-import-title",audioLabel.title);
+  set("audio-hint",audioLabel.hint);
+  set("audio-verify-copy",audioLabel.verify);
+  const msg=audioStatus.kind==="valid"?audioLabel.valid:
+    audioStatus.kind==="busy"?audioLabel.working:
+    audioStatus.kind==="invalid"?audioLabel.invalid+audioStatus.reason:audioLabel.idle;
+  set("audio-verify-status",msg);
   const exportText=EXPORT_UI[state.language];
   set("export-title",exportText.title);set("export-note",exportText.desc);
   set("srt-label",exportText.srt);set("vtt-label",exportText.vtt);
@@ -153,19 +165,47 @@ function mount(doc){
    b.classList.toggle("active",yes);b.setAttribute("aria-pressed",String(yes));
   }
  }
- const dispatch=a=>{state=transition(state,a);render();};
+ const dispatch=a=>{
+  if(["LANGUAGE","PRODUCT","RESET"].includes(a.type)){
+   verifiedAudio=null; audioStatus={kind:"idle"}; importGeneration++;
+  }
+  state=transition(state,a);render();
+ };
  get("lang").addEventListener("change",e=>dispatch({type:"LANGUAGE",value:e.target.value}));
  get("play-btn").addEventListener("click",()=>dispatch({type:"PLAY"}));
  get("reset-btn").addEventListener("click",()=>dispatch({type:"RESET"}));
  get("prev-scene-btn").addEventListener("click",()=>dispatch({type:"PREV_SCENE"}));
  const exportCaptions=format=>{
   const media=BaoSubtitles.createExport({beats:STORYBOARD[state.language][state.product],language:state.language,product:state.product,format});
-  const objectUrl=URL.createObjectURL(new Blob([media.text],{type:media.mime}));
+  const verified=verifiedAudio&&verifiedAudio.language===state.language&&verifiedAudio.product===state.product;
+  const content=verified?BaoSubtitles.render(verifiedAudio.cues,format):media.text;
+  const fileName=verified?media.filename.replace("-demo.","-wav-matched-manual-not-synced."):media.filename;
+  const objectUrl=URL.createObjectURL(new Blob([content],{type:media.mime}));
   const anchor=doc.createElement("a");
-  anchor.href=objectUrl;anchor.download=media.filename;
+  anchor.href=objectUrl;anchor.download=fileName;
   doc.body.appendChild(anchor);anchor.click();anchor.remove();
   setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
  };
+ get("verify-audio-btn").addEventListener("click",async()=>{
+  const generation=++importGeneration,language=state.language,product=state.product;
+  verifiedAudio=null;audioStatus={kind:"busy"};render();
+  const wavInput=get("audio-wav-input"),jsonInput=get("audio-json-input");
+  const wav=wavInput.files?.[0],json=jsonInput.files?.[0];
+  try{
+   if(!wav||!json||wav.size<44||wav.size>BaoAudioTiming.MAX_WAV_BYTES||
+      json.size<2||json.size>65536)throw Error("INVALID_FILE_SELECTION_OR_SIZE");
+   const bytes=await wav.arrayBuffer();
+   const manifest=JSON.parse(await json.text());
+   const valid=await BaoAudioTiming.verify({wavBytes:bytes,manifest,language,product,beats:STORYBOARD[language][product]});
+   if(generation!==importGeneration||state.language!==language||state.product!==product)return;
+   verifiedAudio=valid;audioStatus={kind:"valid"};
+  }catch(err){
+   if(generation!==importGeneration)return;
+   verifiedAudio=null;audioStatus={kind:"invalid",reason:String(err?.message||"INVALID_MANIFEST").slice(0,90)};
+  }finally{
+   if(generation===importGeneration){wavInput.value="";jsonInput.value="";render();}
+  }
+ });
  get("export-srt-btn").addEventListener("click",()=>exportCaptions("srt"));
  get("export-vtt-btn").addEventListener("click",()=>exportCaptions("vtt"));
  get("next-scene-btn").addEventListener("click",()=>dispatch({type:"NEXT_SCENE"}));

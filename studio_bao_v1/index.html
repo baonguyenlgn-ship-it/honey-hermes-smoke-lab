@@ -55,6 +55,16 @@
                 <button type="button" class="export-btn" id="export-vtt-btn"><span id="vtt-label">Xuất VTT</span> ↓</button>
               </div>
             </div>
+            <div class="audio-input-demo" aria-label="Private offline WAV timing validation">
+              <div class="audio-input-title"><strong id="audio-import-title">KIỂM TRA WAV VÀ MỐC THỜI GIAN</strong><span>LOCAL · DEMO</span></div>
+              <p id="audio-hint">File cục bộ · không tải lên mạng · chưa xác thực giọng nói</p>
+              <div class="audio-input-row">
+                <label>WAV PCM<input id="audio-wav-input" type="file" accept=".wav,audio/wav" aria-label="Local WAV for verification"></label>
+                <label>JSON<input id="audio-json-input" type="file" accept=".json,application/json" aria-label="Local manual timing manifest"></label>
+              </div>
+              <button type="button" id="verify-audio-btn" class="audio-verify-button"><span id="audio-verify-copy">Kiểm tra WAV + JSON</span></button>
+              <p id="audio-verify-status" role="status" aria-live="polite">Chưa có WAV được xác minh</p>
+            </div>
           </section>
           <section class="products-panel" aria-labelledby="products-heading">
             <div class="panel-head"><div><span class="section-index">02 / SHOWCASE</span><h2 id="products-heading">Product spotlight</h2></div><span class="muted tiny" id="product-note">DỮ LIỆU GIẢ LẬP</span></div>
@@ -86,6 +96,7 @@
     </main>
   </div>
   <script src="./subtitles.js"></script>
+  <script src="./audio_timing.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
