@@ -11,7 +11,7 @@ permissions:
 jobs:
   hermes-contract-qa:
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'hermes-lab/') }}
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 5
     steps:
       - name: Checkout exact PR head
@@ -19,43 +19,55 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+      - name: Set up Python for Windows
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
       - name: Run isolated worker contract QA
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
-          python3 -m unittest discover -s hermes_worker_lab -t . -v
-          python3 -m py_compile hermes_worker_lab/worker_admission.py hermes_worker_lab/tests/test_worker_admission.py
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}") { throw 'HEAD_SHA_MISMATCH' }
+          python -m unittest discover -s hermes_worker_lab -t . -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m py_compile hermes_worker_lab/worker_admission.py hermes_worker_lab/tests/test_worker_admission.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   hermes-cli-smoke:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'hermes-lab/')) }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    runs-on: windows-latest
+    timeout-minutes: 12
     steps:
-      - name: Install pinned Hermes dev environment and verify CLI
-        shell: bash
+      - name: Install pinned Hermes dev environment and verify native Windows CLI
+        shell: pwsh
         run: |
-          set -euo pipefail
-          expected_sha="bf0203a794a07aac3ff764972ab9087baa4e4f4e"
-          source_dir="$RUNNER_TEMP/hermes-agent"
-          git init "$source_dir"
-          git -C "$source_dir" remote add origin https://github.com/NousResearch/hermes-agent.git
-          git -C "$source_dir" fetch --depth 1 origin v0.22.5
-          git -C "$source_dir" checkout --detach FETCH_HEAD
-          actual_sha="$(git -C "$source_dir" rev-parse HEAD)"
-          test "$actual_sha" = "$expected_sha"
-          export HERMES_HOME="$RUNNER_TEMP/hermes-home"
-          export HERMES_RUNTIME_DIR="$RUNNER_TEMP/hermes-runtime"
-          mkdir -p "$HERMES_HOME" "$HERMES_RUNTIME_DIR"
-          unset GITHUB_TOKEN GH_TOKEN
-          cd "$source_dir"
-          source ./activate
-          hermes --help
-          echo "Hermes CLI smoke: PASS"
-          echo "upstream_commit=$actual_sha"
+          $ErrorActionPreference = 'Stop'
+          $expectedSha = 'bf0203a794a07aac3ff764972ab9087baa4e4f4e'
+          $sourceDir = Join-Path $env:RUNNER_TEMP 'hermes-agent'
+          New-Item -ItemType Directory -Path $sourceDir -Force | Out-Null
+          git init $sourceDir
+          if ($LASTEXITCODE -ne 0) { throw 'GIT_INIT_FAILED' }
+          git -C $sourceDir remote add origin https://github.com/NousResearch/hermes-agent.git
+          if ($LASTEXITCODE -ne 0) { throw 'GIT_REMOTE_FAILED' }
+          git -C $sourceDir fetch --depth 1 origin v0.22.5
+          if ($LASTEXITCODE -ne 0) { throw 'PIN_FETCH_FAILED' }
+          git -C $sourceDir checkout --detach FETCH_HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'PIN_CHECKOUT_FAILED' }
+          $actualSha = (git -C $sourceDir rev-parse HEAD).Trim()
+          if ($actualSha -ne $expectedSha) { throw 'HERMES_UPSTREAM_SHA_MISMATCH' }
+          $env:HERMES_HOME = Join-Path $env:RUNNER_TEMP 'hermes-home'
+          $env:HERMES_RUNTIME_DIR = Join-Path $env:RUNNER_TEMP 'hermes-runtime'
+          New-Item -ItemType Directory -Path $env:HERMES_HOME, $env:HERMES_RUNTIME_DIR -Force | Out-Null
+          Remove-Item Env:GITHUB_TOKEN, Env:GH_TOKEN -ErrorAction SilentlyContinue
+          Set-Location -LiteralPath $sourceDir
+          . .\activate.ps1
+          hermes --help | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_HERMES_CLI_FAILED' }
+          Write-Output 'Hermes Windows CLI smoke: PASS'
+          Write-Output "upstream_commit=$actualSha"
           deactivate
   hermes-artifact-qa:
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'hermes-lab/') }}
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 5
     steps:
       - name: Checkout exact PR head
@@ -63,14 +75,22 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+      - name: Set up Python for Windows
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11'
       - name: Run focused artifact intake negative tests
-        shell: bash
-        run: python3 -m unittest hermes_worker_lab.tests.test_artifact_qa -v
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m unittest hermes_worker_lab.tests.test_artifact_qa -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify actual artifact bytes and compile exact file
-        shell: bash
+        shell: pwsh
         env:
           GITHUB_HEAD_REF: ${{ github.head_ref }}
         run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
-          python3 -m hermes_worker_lab.artifact_qa --repo-root .
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}") { throw 'HEAD_SHA_MISMATCH' }
+          python -m hermes_worker_lab.artifact_qa --repo-root .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
