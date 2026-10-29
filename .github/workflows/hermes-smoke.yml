@@ -27,7 +27,7 @@ jobs:
           python3 -m unittest discover -s hermes_worker_lab -t . -v
           python3 -m py_compile hermes_worker_lab/worker_admission.py hermes_worker_lab/tests/test_worker_admission.py
   hermes-cli-smoke:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'hermes-lab/')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
