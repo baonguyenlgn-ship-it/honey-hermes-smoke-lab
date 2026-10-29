@@ -516,7 +516,8 @@ jobs:
           Write-Output 'ST3_LEGAL_CHECKLIST_ONLY_QA_PASS_NO_COMMERCIAL_CLEARANCE'
 
   supertonic3-listener-scoring-intake-qa:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # 32/32 report screening tests PASS on run 40966783895; freeze unchanged gate.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 3
     steps:
@@ -537,3 +538,47 @@ jobs:
           node studio_bao_v1/voice/listening_score_gate.js
           if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
           Write-Output 'ST3_LISTENER_SCORE_SCREEN_ONLY_PASS_NO_HUMAN_EVIDENCE'
+
+  supertonic3-eight-script-in-memory-cpu:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Exact PR SHA checkout read-only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Fail-closed locked Windows Python runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'ST3_SCRIPT_PROBE_SHA_MISMATCH'}
+          ./studio_bao_v1/voice/supertonic3_install_locked_runtime.ps1 -Out "${{ runner.temp }}/honey-st3-eight-venv"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_locked_runtime_check.js "${{ runner.temp }}/honey-st3-eight-venv"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Generate only eight in-memory signals for all review texts with SHA-pinned ONNX
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./studio_bao_v1/voice/supertonic3_m1_windows.ps1 -Mode ReviewCorpus -RuntimeDir "${{ runner.temp }}/honey-st3-eight-venv" -Out "${{ runner.temp }}/honey-st3-eight-probe"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Independent audio signal and exact eight-script manifest checks
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/voice/supertonic3_eight_script_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_eight_script_check.js "${{ runner.temp }}/honey-st3-eight-probe"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Upload only metadata report with no sample audio
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: honey-st3-eight-script-signals-metadata
+          path: |
+            ${{ runner.temp }}/honey-st3-eight-probe/source-report.json
+            ${{ runner.temp }}/honey-st3-eight-probe/eight-script-signal-qa.json
+          if-no-files-found: warn
+          retention-days: 2

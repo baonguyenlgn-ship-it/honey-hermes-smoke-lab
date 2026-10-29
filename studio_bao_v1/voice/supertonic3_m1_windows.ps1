@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Out,[ValidateSet('Wav','Benchmark','SeedQuality')][string]$Mode='Wav',[Parameter(Mandatory=$true)][string]$RuntimeDir)
+param([Parameter(Mandatory=$true)][string]$Out,[ValidateSet('Wav','Benchmark','SeedQuality','ReviewCorpus')][string]$Mode='Wav',[Parameter(Mandatory=$true)][string]$RuntimeDir)
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
@@ -44,7 +44,13 @@ try{
  $r.isolated_runtime_verified=$true
  # Python dependencies were already verified and installed OFFLINE in a fresh venv.
  $r.status='RUNTIME_READY'
- if($Mode -eq 'SeedQuality'){
+ if($Mode -eq 'ReviewCorpus'){
+   & $runtimeExe (Join-Path $PSScriptRoot 'supertonic3_eight_script_probe.py') $root $Out
+   if($LASTEXITCODE -ne 0){throw ('REVIEW_CORPUS_INFERENCE_EXIT_'+$LASTEXITCODE)}
+   if(-not(Test-Path -LiteralPath (Join-Path $Out 'eight-script-signal-qa.json'))){throw 'REVIEW_CORPUS_REPORT_MISSING'}
+   $r.status='EIGHT_SCRIPT_SIGNALS_NEED_INDEPENDENT_QA'
+   $r.wav_generated=$false
+ } elseif($Mode -eq 'SeedQuality'){
    & $runtimeExe (Join-Path $PSScriptRoot 'supertonic3_seed_quality.py') $root $Out
    if($LASTEXITCODE -ne 0){throw ('SEED_QUALITY_EXECUTION_EXIT_'+$LASTEXITCODE)}
    if(-not(Test-Path -LiteralPath (Join-Path $Out 'seed-quality-report.json'))){throw 'SEED_QUALITY_REPORT_MISSING'}
