@@ -2,7 +2,7 @@ name: Hermes real TEST authority Windows verification
 on:
   push:
     branches: [hermes-lab/actions-publisher-20261029-01]
-    paths: ['hermes_lab_local/authority_test/**', '.github/workflows/hermes-test-authority-readback.yml']
+    paths: ['hermes_lab_local/authority_test/**', '.github/workflows/hermes-test-authority-readback.yml', '.gitattributes']
 permissions:
   contents: read
 jobs:
