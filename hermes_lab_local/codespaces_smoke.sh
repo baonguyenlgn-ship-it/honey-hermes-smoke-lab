@@ -9,10 +9,10 @@ REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 [[ "${CODESPACES:-}" == "true" ]] || { echo CODESPACE_ONLY; exit 51; }
 [[ "$(git -C "$REPO" branch --show-current)" == "hermes-lab/actions-publisher-20261029-01" ]] || { echo WRONG_LAB_BRANCH; exit 52; }
 sudo -n test -d "$BASE/home/.hermes" || { echo ISOLATION_NOT_PREPARED; exit 53; }
-if ! sudo -n -u "$USER_NAME" test -f "$BASE/home/.hermes/auth.json"; then
+if ! sudo -n runuser -u "$USER_NAME" -- test -f "$BASE/home/.hermes/auth.json"; then
   echo "OWNER_OAUTH_NOT_COMPLETED"; exit 54
 fi
-sudo -n -u "$USER_NAME" env -i HOME="$BASE/home" HERMES_HOME="$BASE/home/.hermes" \
+sudo -n runuser -u "$USER_NAME" -- env -i HOME="$BASE/home" HERMES_HOME="$BASE/home/.hermes" \
   PATH="/usr/local/bin:/usr/bin:/bin" TERM="${TERM:-dumb}" \
   HERMES_TEST_BASE="$BASE" HERMES_LAB_SCRIPT_DIR="$SCRIPT_DIR" bash -c '
     set -euo pipefail
@@ -27,9 +27,13 @@ sudo -n -u "$USER_NAME" env -i HOME="$BASE/home" HERMES_HOME="$BASE/home/.hermes
       "    return str(text).strip().casefold()" > "$out/request.txt"
     cd "$HERMES_TEST_BASE/sandbox"
     source "$src/activate"
+    python "$src/hermes" tools list > "$out/tool-lock.txt"
+    grep -q "disabled  terminal" "$out/tool-lock.txt"
+    if grep -Eq "✓.*enabled" "$out/tool-lock.txt"; then echo TOOLS_NOT_LOCKED; exit 56; fi
     set +e
-    timeout --kill-after=5s 90s hermes chat --query-file "$out/request.txt" --oneshot \
-      --format stream-json --max-turns 1 > "$out/stream.jsonl" 2> "$out/diagnostics-private.log"
+    timeout --kill-after=5s 90s python "$src/hermes" chat --query-file "$out/request.txt" --oneshot \
+      --format stream-json --max-turns 1 \
+      --provider nous --model upstage/solar-mini4:free --ignore-rules > "$out/stream.jsonl" 2> "$out/diagnostics-private.log"
     status=$?
     set -e
     if [[ "$status" -ne 0 ]]; then

@@ -25,7 +25,7 @@ if [[ -e "$BASE/home/.hermes/auth.json" ]]; then
   sudo -n chmod 600 "$BASE/home/.hermes/auth.json"
 fi
 # No mirror of GitHub OAuth/session credentials into the low-privilege user.
-if sudo -n -u "$USER_NAME" test -r "/home/vscode/.config/gh/hosts.yml"; then
+if sudo -n runuser -u "$USER_NAME" -- test -r "/home/vscode/.config/gh/hosts.yml"; then
   echo "GITHUB_CREDENTIALS_READABLE_BY_HERMES_REFUSE"; exit 26
 fi
 echo "HERMES_CODESPACE_ISOLATED_USER_PREPARED"
