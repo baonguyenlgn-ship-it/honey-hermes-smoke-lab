@@ -220,7 +220,7 @@ function mount(doc){
  get("verify-audio-btn").addEventListener("click",async()=>{
   const generation=++importGeneration,language=state.language,product=state.product;
   resetPlayback();verifiedAudio=null;audioStatus={kind:"busy"};render();
-  const wavInput=get("audio-wav-input"),jsonInput=get("audio-json-input");
+  const wavInput=get("audio-wav-input"),jsonInput=get("audio-json-input"),visemeInput=get("viseme-json-input");
   const wav=wavInput.files?.[0],json=jsonInput.files?.[0];
   try{
    if(!wav||!json||wav.size<44||wav.size>BaoAudioTiming.MAX_WAV_BYTES||
@@ -228,18 +228,25 @@ function mount(doc){
    const bytes=await wav.arrayBuffer();
    const manifest=JSON.parse(await json.text());
    const valid=await BaoAudioTiming.verify({wavBytes:bytes,manifest,language,product,beats:STORYBOARD[language][product]});
+   let manualViseme=null;
+   const sidecar=visemeInput.files?.[0];
+   if(sidecar){
+    if(sidecar.size<10||sidecar.size>16384)throw Error("VISEME_JSON_SIZE_INVALID");
+    manualViseme=JSON.parse(await sidecar.text());
+    BaoVisemeTiming.verify({track:manualViseme,verifiedAudio:valid});
+   }
    if(generation!==importGeneration||state.language!==language||state.product!==product)return;
    verifiedAudio=valid;audioStatus={kind:"valid"};
    playbackUrl=URL.createObjectURL(new Blob([bytes],{type:"audio/wav"}));
    audioPlayer.src=playbackUrl;audioPlayer.hidden=false;audioPlayer.load();
    if(typeof CustomEvent==="function"&&typeof doc.dispatchEvent==="function")
-    doc.dispatchEvent(new CustomEvent("honey:verified-local-wav",{detail:{verified:true,wavBytes:bytes,durationMs:valid.audio.durationMs}}));
+    doc.dispatchEvent(new CustomEvent("honey:verified-local-wav",{detail:{verified:true,wavBytes:bytes,durationMs:valid.audio.durationMs,verifiedAudio:valid,visemeTrack:manualViseme}}));
    updatePlayback();
   }catch(err){
    if(generation!==importGeneration)return;
    resetPlayback();verifiedAudio=null;audioStatus={kind:"invalid",reason:String(err?.message||"INVALID_MANIFEST").slice(0,90)};
   }finally{
-   if(generation===importGeneration){wavInput.value="";jsonInput.value="";render();}
+   if(generation===importGeneration){wavInput.value="";jsonInput.value="";visemeInput.value="";render();}
   }
  });
  get("export-srt-btn").addEventListener("click",()=>exportCaptions("srt"));

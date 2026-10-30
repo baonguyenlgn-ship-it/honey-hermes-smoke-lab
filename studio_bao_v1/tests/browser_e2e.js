@@ -147,14 +147,16 @@ async function main(){
     {startMs:300,endMs:700,text:captionsForWav[1]},
     {startMs:700,endMs:1000,text:captionsForWav[2]}
   ]};
- async function installSyntheticFiles(localManifest){
+ async function installSyntheticFiles(localManifest,manualTrack=null){
   const expression="(()=>{"
    +"const wavBinary=atob("+JSON.stringify(pcm.toString("base64"))+");"
    +"const wav=Uint8Array.from(wavBinary,c=>c.charCodeAt(0));"
    +"const w=new DataTransfer();w.items.add(new File([wav],'test-silent.wav',{type:'audio/wav'}));"
    +"const j=new DataTransfer();j.items.add(new File(["+JSON.stringify(JSON.stringify(localManifest))+"],'manual.json',{type:'application/json'}));"
    +"document.getElementById('audio-wav-input').files=w.files;"
-   +"document.getElementById('audio-json-input').files=j.files;return true;})()";
+   +"document.getElementById('audio-json-input').files=j.files;"
+   +(manualTrack?"const v=new DataTransfer();v.items.add(new File(["+JSON.stringify(JSON.stringify(manualTrack))+"],'viseme.json',{type:'application/json'}));document.getElementById('viseme-json-input').files=v.files;":"document.getElementById('viseme-json-input').value='';")
+   +"return true;})()";
   assert.equal(await evaluate(expression),true);
  }
  assert.equal(await evaluate("!!globalThis.crypto && !!globalThis.crypto.subtle"),true,
@@ -178,6 +180,36 @@ async function main(){
  await evaluate("document.getElementById('export-vtt-btn').click();true");
  const wavBoundVtt=await waitDownload("honey-bao-v1-mango-vi-wav-matched-manual-not-synced.vtt");
  assert.match(wavBoundVtt,/00:00:00.700 --> 00:00:01.000/);
+ const manualTrack={version:1,method:"manual_viseme_cues_unverified",
+  provenance:"synthetic_dev_fixture",language:"vi",product:"mango",audioSha256:sha,durationMs:1000,
+  segments:[
+   {startMs:0,endMs:200,shape:"REST"},
+   {startMs:200,endMs:450,shape:"BMP"},
+   {startMs:450,endMs:700,shape:"AA"},
+   {startMs:700,endMs:950,shape:"OO"},
+   {startMs:950,endMs:1000,shape:"REST"}
+  ]};
+ await installSyntheticFiles(manifest,manualTrack);
+ await evaluate("document.getElementById('verify-audio-btn').click();true");
+ await until("HoneyMouthPreview.snapshot().method === 'MANUAL_VISEME_TIMELINE_UNVERIFIED'");
+ assert.equal(await evaluate("HoneyMouthPreview.snapshot().actualLipSync"),false);
+ assert.equal(await evaluate("HoneyMouthPreview.snapshot().production"),false);
+ await evaluate("(()=>{let a=document.getElementById('local-audio-player');a.currentTime=.30;a.dispatchEvent(new Event('timeupdate'));return true;})()");
+ assert.equal(await evaluate("HoneyMouthPreview.snapshot().viseme"),"BMP");
+ await evaluate("(()=>{let a=document.getElementById('local-audio-player');a.currentTime=.52;a.dispatchEvent(new Event('timeupdate'));return true;})()");
+ assert.equal(await evaluate("HoneyMouthPreview.snapshot().viseme"),"AA");
+ await evaluate("(()=>{let a=document.getElementById('local-audio-player');a.currentTime=.81;a.dispatchEvent(new Event('timeupdate'));return true;})()");
+ assert.equal(await evaluate("HoneyMouthPreview.snapshot().viseme"),"OO");
+ assert.equal(await evaluate("document.getElementById('mouth-preview-status').textContent.includes('KHÔNG PHẢI LIP-SYNC')"),true);
+ await evaluate("(()=>{let a=document.getElementById('local-audio-player');a.currentTime=.99;a.dispatchEvent(new Event('timeupdate'));return true;})()");
+ assert.equal(await evaluate("HoneyMouthPreview.snapshot().viseme"),"REST");
+ await installSyntheticFiles(manifest,{...manualTrack,audioSha256:"f".repeat(64)});
+ await evaluate("document.getElementById('verify-audio-btn').click();true");
+ await until("document.getElementById('audio-verify-status').textContent.includes('VISEME_AUDIO_HASH_MISMATCH')");
+ assert.equal(await evaluate("HoneyMouthPreview.snapshot().ready"),false);
+ assert.equal(await evaluate("document.getElementById('avatar-mouth').hidden"),true);
+ console.log("BROWSER_SYNTHETIC_MANUAL_VISEME_BMP_AA_OO_AND_FORGED_SHA_REJECTION_PASS_NOT_LIPSYNC");
+
  await installSyntheticFiles({...manifest,sha256:"0".repeat(64)});
  await evaluate("document.getElementById('verify-audio-btn').click();true");
  await until("document.getElementById('audio-verify-status').textContent.includes('WAV_SHA_MISMATCH')");

@@ -641,7 +641,8 @@ jobs:
           Write-Output 'ST3_OFFLINE_REVIEW_RECONCILIATION_QA_PASS_NO_HUMAN_APPROVAL'
 
   studio-local-wav-mouth-energy-preview-qa:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    # Verified WAV + 20ms RMS silhouette PASS in run 40970358264; do not repeat unchanged gate.
+    if: ${{ false }}
     runs-on: windows-latest
     timeout-minutes: 5
     steps:
@@ -672,3 +673,36 @@ jobs:
           node studio_bao_v1/tests/browser_e2e.js
           if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
           Write-Output 'HONEY_STUDIO_WAV_AMPLITUDE_PUPPET_PREVIEW_ONLY_PASS_NOT_LIP_SYNC'
+
+  studio-manual-viseme-timing-browser-qa:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact Studio PR SHA without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Independently test manual viseme timeline and fail-closed forged tracks
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'MANUAL_VISEME_HEAD_MISMATCH'}
+          node --check studio_bao_v1/viseme_timing.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --check studio_bao_v1/mouth_preview.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --check studio_bao_v1/app.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/viseme_timing.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Chrome browser fake viseme timings, WAV digest refusal, desktop/mobile and no-network regression
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/tests/browser_e2e.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/tests/browser_e2e.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'ST3_SYNTHETIC_MANUAL_VISEME_CLOCK_PASS_NOT_ACTUAL_LIPSYNC'

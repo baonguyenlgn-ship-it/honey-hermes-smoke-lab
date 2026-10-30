@@ -125,3 +125,11 @@ footer{display:flex;gap:10px;justify-content:space-between;color:#647b88;font-si
 .mouth-preview-caption{display:block;font-size:10px;letter-spacing:.03em;
  color:#e6cba6;margin:7px 0 2px;overflow-wrap:anywhere}
 @media (prefers-reduced-motion:reduce){.avatar-mouth{transition:none}}
+
+/* Manual, unverified viseme shapes on the non-identifiable LAB silhouette only. */
+.avatar-mouth[data-viseme="BMP"]{border-radius:50% 50% 30% 30%}
+.avatar-mouth[data-viseme="AA"]{border-radius:42% 42% 65% 65%}
+.avatar-mouth[data-viseme="EE"]{border-radius:20% 20% 35% 35%}
+.avatar-mouth[data-viseme="OO"]{border-radius:50%}
+.avatar-mouth[data-viseme="FV"]{border-radius:15% 15% 45% 45%;border-top:2px solid #d3b9a7}
+.avatar-mouth[data-viseme="L"]{border-radius:30% 30% 55% 55%}

@@ -61,6 +61,7 @@
               <div class="audio-input-row">
                 <label>WAV PCM<input id="audio-wav-input" type="file" accept=".wav,audio/wav" aria-label="Local WAV for verification"></label>
                 <label>JSON<input id="audio-json-input" type="file" accept=".json,application/json" aria-label="Local manual timing manifest"></label>
+                <label>VISEME (TÙY CHỌN · DEMO)<input id="viseme-json-input" type="file" accept=".json,application/json" aria-label="Optional local manual unverified viseme timing JSON"></label>
               </div>
               <button type="button" id="verify-audio-btn" class="audio-verify-button"><span id="audio-verify-copy">Kiểm tra WAV + JSON</span></button>
               <p id="audio-verify-status" role="status" aria-live="polite">Chưa có WAV được xác minh</p>
@@ -107,6 +108,7 @@
   <script src="./subtitles.js"></script>
   <script src="./audio_timing.js"></script>
   <script src="./mouth_energy.js"></script>
+  <script src="./viseme_timing.js"></script>
   <script src="./mouth_preview.js"></script>
   <script src="./app.js"></script>
 </body>
