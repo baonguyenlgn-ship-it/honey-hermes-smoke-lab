@@ -251,7 +251,8 @@ jobs:
           retention-days: 1
 
   hermes-codespaces-host-admission-qa:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/hermes-lab/actions-publisher-20261029-01' }}
+    # Verified 18/18 source-contract QA on Windows-independent Ubuntu run 41040701291; freeze on unrelated changes.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 4
     permissions:
