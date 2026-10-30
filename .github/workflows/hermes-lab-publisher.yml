@@ -137,8 +137,9 @@ jobs:
               ' source_sha=' + context.sha + ' base_sha=' + baseSha);
 
   hermes-local-cpu-origin:
-    # One Owner-approved bounded zero-secret real inference retest after v0.22.5 provider-route diagnosis.
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/hermes-lab/actions-publisher-20261029-01' }}
+    # Direct llama API PASS, Hermes gateway still FAIL at real turn in 41035348644; frozen to conserve CI.
+    # Require independently diagnosed gateway failure and authorized runtime before any re-enable.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
