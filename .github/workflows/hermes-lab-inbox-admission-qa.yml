@@ -1,0 +1,32 @@
+name: Hermes LAB safe command-inbox admission QA
+on:
+  push:
+    branches:
+      - hermes-lab/actions-publisher-20261029-01
+    paths:
+      - hermes_lab_local/mission_inbox.py
+      - hermes_lab_local/test_mission_inbox.py
+      - .github/workflows/hermes-lab-inbox-admission-qa.yml
+permissions:
+  contents: read
+jobs:
+  lab-inbox-read-only-admission-tests:
+    runs-on: windows-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact SHA without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Identity nonce SHA scope and B07 rejection fixtures
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'WRONG_HEAD' }
+          python -m unittest hermes_lab_local.test_mission_inbox -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m py_compile hermes_lab_local/mission_inbox.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output 'HERMES_LAB_INBOX_ADMISSION_16_CASES_PASS_NOT_AUTOMATIC_EXECUTION'

@@ -1,0 +1,11 @@
+# Honey → Hermes LAB command inbox (prototype, no automatic execution)
+
+This uses existing Draft PR #4 as a read-only **public** mission inbox. No new repo/host, model call, payment, automatic coding or GitHub write by Hermes.
+
+A future low-privilege isolated Codespace worker can run `python3 -m hermes_lab_local.mission_inbox --head <verified-sha>` to inspect one page of PR #4 public comments. The parser verifies the API's immutable owner numeric ID and OWNER association, unedited command, nonce, expected exact LAB HEAD and exact allowlisted JSON. It can only admit the harmless `LAB-NORMALIZE-REPAIR-V1` for `upstage/solar-mini4:free` and two QA repairs. `mode=dry-run-queue-only` means **no task execution**. GitHub identity verification is not a cryptographic signer or Core issuer/Guard lease. There is no persistence or daemon in this prototype.
+
+Never place private business data, passwords, issuer, First Trust secrets, B07/B08/B09/B10 maintenance authority or customer information in this PUBLIC repository or its comments. Such privileged tasks must first be separated into approved private/signed governance workflow with independently verified scope, origin and consent.
+
+Hermes pinned v0.22.5 includes cron/no-agent mode and its Gateway scheduler, but using it continuously needs a *running* host. Codespaces can auto-stop; keeping it awake uses plan quota and may incur charges. Do not start unattended cron, webhooks, external paid browser services or an always-on daemon without verifying spend/authority. No signed webhooks/host wake-ups or notification-to-Honey were verified. Existing previous actual Hermes single-code task and Windows SHA PASS are distinct from this inbox parser.
+
+The finished A→Z design needs: (1) trusted Owner command, (2) durable one-writer lease and nonce/replay ledger, (3) isolated worker with scoped tools and free-only budget, (4) real QA→up to two true model repairs, (5) independent Windows SHA and patch QA, (6) report to Honey via supported connected status/notification. Until all six are demonstrated, report `INBOX_PREPARED_NOT_RUNNING`, not production/unattended PASS.
