@@ -1,0 +1,17 @@
+{
+  "name": "Honey Hermes LAB (isolated DEV/TEST only)",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",
+  "remoteUser": "vscode",
+  "overrideCommand": false,
+  "postCreateCommand": "bash hermes_lab_local/codespaces_prepare.sh",
+  "customizations": {
+    "vscode": {
+      "settings": { "terminal.integrated.defaultProfile.linux": "bash" }
+    }
+  },
+  "forwardPorts": [],
+  "portsAttributes": {
+    "9119": {"onAutoForward": "ignore"},
+    "8642": {"onAutoForward": "ignore"}
+  }
+}

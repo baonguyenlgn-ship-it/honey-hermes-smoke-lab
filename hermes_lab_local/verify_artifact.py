@@ -24,7 +24,10 @@ def gate(response):
     canonical = ast.parse("def normalize_label(text):\n    return str(text).strip().casefold()\n")
     if ast.dump(tree, include_attributes=False) != ast.dump(canonical, include_attributes=False):
         raise ValueError("NOT_THE_PINNED_MINIMAL_AST")
-    return (text + "\n").encode()
+    # Preserve exactly the UTF-8 bytes Hermes emitted; do not silently rewrite them.
+    if any(bad in response for bad in ("\r", "\x00", "\ufeff")):
+        raise ValueError("CONTROL_BYTES_FORBIDDEN")
+    return response.encode("utf8")
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
@@ -34,7 +37,7 @@ if __name__ == "__main__":
     target = Path(dest)
     target.mkdir(parents=True, exist_ok=False)
     (target / "normalize_label.py").write_bytes(source)
-    manifest = {"schema": "hermes.local.cpu.smoke.v1", "run": run,
+    manifest = {"schema": "hermes.isolated.original-source.v1", "run": run,
                 "hermes_sha": hermes_sha, "sha256": hashlib.sha256(source).hexdigest(),
                 "size": len(source), "origin_cloud_authenticated": False,
                 "human_qa": False, "core_authorized": False, "production": False}

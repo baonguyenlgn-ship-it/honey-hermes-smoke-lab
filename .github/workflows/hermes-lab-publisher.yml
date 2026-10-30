@@ -249,3 +249,35 @@ jobs:
           path: ${{ runner.temp }}/origin/
           if-no-files-found: error
           retention-days: 1
+
+  hermes-codespaces-host-admission-qa:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/hermes-lab/actions-publisher-20261029-01' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    permissions:
+      contents: read
+    steps:
+      - name: Exact LAB HEAD checkout with credentials disabled
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Static Codespaces host admission and protected Hermes-source handoff tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          for s in hermes_lab_local/codespaces_prepare.sh hermes_lab_local/codespaces_auth_bootstrap.sh hermes_lab_local/codespaces_smoke.sh; do bash -n "$s"; done
+          python3 -m unittest discover -s hermes_lab_local -p 'test_*.py' -v
+          python3 -m py_compile hermes_lab_local/verify_artifact.py hermes_lab_local/codespaces_stream_gate.py hermes_lab_local/codespaces_broker.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          c=json.loads(Path(".devcontainer/devcontainer.json").read_text())
+          assert c["remoteUser"] == "vscode"
+          assert c["forwardPorts"] == []
+          assert c["postCreateCommand"] == "bash hermes_lab_local/codespaces_prepare.sh"
+          assert not any("GITHUB_TOKEN" in str(x) for x in c.values())
+          print("HERMES_CODESPACES_DEVCONTAINER_NO_AUTOMATED_OAUTH_OR_MODEL_PASS")
+          PY
+          echo 'HERMES_CODESPACES_PREP_STATIC_QA_PASS_NO_REAL_OAUTH_NO_HERMES_E2E'
