@@ -205,13 +205,13 @@ jobs:
           export HERMES_HOME="$RUNNER_TEMP/hermes-home"
           export HERMES_RUNTIME_DIR="$RUNNER_TEMP/hermes-runtime"
           mkdir -p "$HERMES_HOME" "$HERMES_RUNTIME_DIR"
-          printf 'model:\n  provider: custom\n  default: local-qwen\n  base_url: http://127.0.0.1:18081/v1\n  api_key: local-fixture-not-secret\nagent:\n  max_turns: 1\n' > "$HERMES_HOME/config.yaml"
+          printf 'model:\n  provider: custom\n  default: local-qwen\n  base_url: http://127.0.0.1:18081/v1\n  api_key: local-fixture-not-secret\nagent:\n  max_turns: 1\n  run_budget_seconds: 80\n' > "$HERMES_HOME/config.yaml"
           printf '%s\n' 'Return ONLY Python source code. No backticks, explanations, imports, network, calls except str/strip/casefold. Define exactly one function: def normalize_label(text): return str(text).strip().casefold().' > "$RUNNER_TEMP/request.txt"
           unset GITHUB_TOKEN GH_TOKEN GH_ENTERPRISE_TOKEN OPENAI_API_KEY ANTHROPIC_API_KEY || true
           cd "$RUNNER_TEMP/hermes"
           source ./activate
           set +e
-          hermes chat --query-file "$RUNNER_TEMP/request.txt" --oneshot --format stream-json --max-turns 1 --run-budget 80 > "$RUNNER_TEMP/hermes-events.jsonl" 2> "$RUNNER_TEMP/hermes-diagnostics.txt"
+          hermes chat --query-file "$RUNNER_TEMP/request.txt" --oneshot --format stream-json --max-turns 1 > "$RUNNER_TEMP/hermes-events.jsonl" 2> "$RUNNER_TEMP/hermes-diagnostics.txt"
           rc=$?
           set -e
           export HERMES_CLI_EXIT="$rc"
