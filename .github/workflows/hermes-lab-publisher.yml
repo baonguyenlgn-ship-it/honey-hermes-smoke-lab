@@ -197,8 +197,35 @@ jobs:
           unset GITHUB_TOKEN GH_TOKEN GH_ENTERPRISE_TOKEN OPENAI_API_KEY ANTHROPIC_API_KEY || true
           cd "$RUNNER_TEMP/hermes"
           source ./activate
-          hermes chat --query-file "$RUNNER_TEMP/request.txt" --oneshot > "$RUNNER_TEMP/hermes-response.txt"
-          test -s "$RUNNER_TEMP/hermes-response.txt"
+          set +e
+          hermes chat --query-file "$RUNNER_TEMP/request.txt" --oneshot --format stream-json > "$RUNNER_TEMP/hermes-events.jsonl" 2> "$RUNNER_TEMP/hermes-diagnostics.txt"
+          rc=$?
+          set -e
+          export HERMES_CLI_EXIT="$rc"
+          python3 - <<'PY'
+          import json,os,re
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])
+          records=[]
+          for line in (root/"hermes-events.jsonl").read_text(errors="replace").splitlines():
+              try:
+                  x=json.loads(line)
+                  if isinstance(x,dict):records.append(x)
+              except json.JSONDecodeError:
+                  pass
+          terminal=next((x for x in reversed(records) if x.get("type")=="result"),{})
+          if int(os.environ["HERMES_CLI_EXIT"]) or terminal.get("exit_code",0):
+              reason=str(terminal.get("error") or (root/"hermes-diagnostics.txt").read_text(errors="replace")[-450:])
+              reason=re.sub(r"(?i)(token|key|secret|authorization)[^ ]{0,90}", "[REDACTED]",reason)
+              print("HERMES_LOCAL_CLI_DIAGNOSTIC_FAILURE="+reason[:450])
+              raise SystemExit(1)
+          result=str(terminal.get("text") or "")
+          if not result.strip():
+              print("HERMES_LOCAL_CLI_EMPTY_FINAL_TEXT")
+              raise SystemExit(1)
+          (root/"hermes-response.txt").write_text(result,encoding="utf8")
+          print("HERMES_LOCAL_CLI_GENERATED_TEXT_LENGTH="+str(len(result)))
+          PY
           cd "$GITHUB_WORKSPACE"
           python3 hermes_lab_local/verify_artifact.py "$RUNNER_TEMP/hermes-response.txt" "$RUNNER_TEMP/origin" "${{ github.run_id }}" bf0203a794a07aac3ff764972ab9087baa4e4f4e
       - name: Upload only bounded original source and metadata, no models or credentials
