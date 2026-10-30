@@ -14,6 +14,7 @@ concurrency:
 
 jobs:
   produce-inert-artifact:
+    if: ${{ false }} # Prior fixture transport PASS 40888887910; freeze.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -59,6 +60,7 @@ jobs:
           retention-days: 1
 
   publish-inert-fixture:
+    if: ${{ false }} # Do not re-run prior fixture publication.
     needs: produce-inert-artifact
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -133,3 +135,76 @@ jobs:
             core.notice('run_id=' + context.runId + ' branch=' + branch +
               ' commit=' + commit.data.sha + ' file_sha256=' + readbackSha +
               ' source_sha=' + context.sha + ' base_sha=' + baseSha);
+
+  hermes-local-cpu-origin:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/hermes-lab/actions-publisher-20261029-01' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact LAB source without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Static fail-closed artifact parser QA before downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          python3 -m unittest discover -s hermes_lab_local -p 'test_*.py' -v
+      - name: Download pin-verified CPU-only llama.cpp and Qwen public weights
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/llama-bin"
+          curl -fL --retry 2 --max-time 220 -o "$RUNNER_TEMP/llama.tgz" https://github.com/ggml-org/llama.cpp/releases/download/b12001/llama-b12001-bin-ubuntu-x64.tar.gz
+          echo 'd93cdded4296627ae295e768789039cd1fd1c217e1444b3500d5faf64792ab56  '"$RUNNER_TEMP/llama.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/llama.tgz" -C "$RUNNER_TEMP/llama-bin"
+          curl -fL --retry 2 --max-time 380 -o "$RUNNER_TEMP/model.gguf" https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/2ab9f8f42af02fc212effaef7c4850c885e965f4/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+          echo 'cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046  '"$RUNNER_TEMP/model.gguf" | sha256sum -c -
+          server="$(find "$RUNNER_TEMP/llama-bin" -type f -name llama-server | head -n 1)"
+          test -n "$server"
+          echo "HERMES_LLAMA_SERVER=$server" >> "$GITHUB_ENV"
+          echo "HERMES_LLAMA_LD=$(dirname "$server")" >> "$GITHUB_ENV"
+          echo 'HERMES_CPU_MODEL_BYTES_VERIFIED'
+      - name: Local model server loopback only; no GH write or Nous auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LD_LIBRARY_PATH="$HERMES_LLAMA_LD:${LD_LIBRARY_PATH:-}"
+          "$HERMES_LLAMA_SERVER" -m "$RUNNER_TEMP/model.gguf" --alias local-qwen --ctx-size 8192 -t 4 --host 127.0.0.1 --port 18081 >"$RUNNER_TEMP/llama.log" 2>&1 &
+          for n in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:18081/health > /dev/null 2>&1; then echo 'HERMES_LOCAL_LLM_HEALTH_PASS';exit 0; fi
+            sleep 1
+          done
+          echo 'LOCAL_LLM_HEALTH_NOT_PROVEN'
+          exit 1
+      - name: Pin Hermes v0.22.5 and perform isolated one-shot local inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/hermes"
+          git -C "$RUNNER_TEMP/hermes" remote add origin https://github.com/NousResearch/hermes-agent.git
+          git -C "$RUNNER_TEMP/hermes" fetch --depth 1 origin v0.22.5
+          git -C "$RUNNER_TEMP/hermes" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/hermes" rev-parse HEAD)" = 'bf0203a794a07aac3ff764972ab9087baa4e4f4e'
+          export HERMES_HOME="$RUNNER_TEMP/hermes-home"
+          export HERMES_RUNTIME_DIR="$RUNNER_TEMP/hermes-runtime"
+          mkdir -p "$HERMES_HOME" "$HERMES_RUNTIME_DIR"
+          printf 'model:\n  provider: custom\n  default: local-qwen\n  base_url: http://127.0.0.1:18081/v1\n' > "$HERMES_HOME/config.yaml"
+          printf '%s\n' 'Return ONLY Python source code. No backticks, explanations, imports, network, calls except str/strip/casefold. Define exactly one function: def normalize_label(text): return str(text).strip().casefold().' > "$RUNNER_TEMP/request.txt"
+          unset GITHUB_TOKEN GH_TOKEN GH_ENTERPRISE_TOKEN OPENAI_API_KEY ANTHROPIC_API_KEY || true
+          cd "$RUNNER_TEMP/hermes"
+          source ./activate
+          hermes chat --query-file "$RUNNER_TEMP/request.txt" --oneshot > "$RUNNER_TEMP/hermes-response.txt"
+          test -s "$RUNNER_TEMP/hermes-response.txt"
+          cd "$GITHUB_WORKSPACE"
+          python3 hermes_lab_local/verify_artifact.py "$RUNNER_TEMP/hermes-response.txt" "$RUNNER_TEMP/origin" "${{ github.run_id }}" bf0203a794a07aac3ff764972ab9087baa4e4f4e
+      - name: Upload only bounded original source and metadata, no models or credentials
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: hermes-local-cpu-origin-${{ github.run_id }}
+          path: ${{ runner.temp }}/origin/
+          if-no-files-found: error
+          retention-days: 1
