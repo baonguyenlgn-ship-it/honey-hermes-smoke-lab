@@ -12,6 +12,9 @@ class LocalArtifactGateTests(unittest.TestCase):
             "def normalize_label(text):\n    return eval('1').strip().casefold()",
             "def normalize_label(text):\n    return text.strip()",
             "print('x')",
+            "def normalize_label(text):\n    return str(text).strip().casefold() if 1 else 'bad'",
+            "def normalize_label(text):\n    return text.__class__.strip().casefold()",
+            "def normalize_label(text):\n    return ('x').strip().casefold()",
         ]
         for s in bad:
             with self.subTest(text=s):

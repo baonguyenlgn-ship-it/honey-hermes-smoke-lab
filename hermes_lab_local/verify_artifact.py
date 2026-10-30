@@ -19,8 +19,11 @@ def gate(response):
             method = item.func.id if isinstance(item.func, ast.Name) else getattr(item.func, "attr", "")
             if method not in ("str", "strip", "casefold"):
                 raise ValueError("UNSAFE_CALL")
-    if ".strip()" not in text or ".casefold()" not in text:
-        raise ValueError("EXPECTED_NORMALIZATION_MISSING")
+    # Byte-check cannot trust a comment containing ".strip().casefold()".
+    # One known, side-effect-free AST is the only allowed smoke artifact.
+    canonical = ast.parse("def normalize_label(text):\n    return str(text).strip().casefold()\n")
+    if ast.dump(tree, include_attributes=False) != ast.dump(canonical, include_attributes=False):
+        raise ValueError("NOT_THE_PINNED_MINIMAL_AST")
     return (text + "\n").encode()
 
 if __name__ == "__main__":

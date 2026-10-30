@@ -137,8 +137,8 @@ jobs:
               ' source_sha=' + context.sha + ' base_sha=' + baseSha);
 
   hermes-local-cpu-origin:
-    # Two proof runs reached verified local model but Hermes v0.22.5 CLI failed at inference; freeze until diagnosed.
-    if: ${{ false }}
+    # One Owner-approved bounded zero-secret real inference retest after v0.22.5 provider-route diagnosis.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/hermes-lab/actions-publisher-20261029-01' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -176,7 +176,19 @@ jobs:
           export LD_LIBRARY_PATH="$HERMES_LLAMA_LD:${LD_LIBRARY_PATH:-}"
           "$HERMES_LLAMA_SERVER" -m "$RUNNER_TEMP/model.gguf" --alias local-qwen --ctx-size 8192 -t 4 --host 127.0.0.1 --port 18081 >"$RUNNER_TEMP/llama.log" 2>&1 &
           for n in $(seq 1 90); do
-            if curl -fsS http://127.0.0.1:18081/health > /dev/null 2>&1; then echo 'HERMES_LOCAL_LLM_HEALTH_PASS';exit 0; fi
+            if curl -fsS http://127.0.0.1:18081/health > /dev/null 2>&1; then
+              curl -fsS --max-time 65 -X POST http://127.0.0.1:18081/v1/chat/completions -H 'Content-Type: application/json' -d '{"model":"local-qwen","messages":[{"role":"user","content":"Return only the word TEST"}],"max_tokens":20,"stream":false}' > "$RUNNER_TEMP/local-probe.json"
+              python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path(os.environ["RUNNER_TEMP"])/"local-probe.json"
+          data=json.loads(p.read_text())
+          text=str(data["choices"][0]["message"].get("content") or "").strip()
+          if not text: raise SystemExit("LOCAL_MODEL_INFERENCE_NOT_PROVEN")
+          print("LOCAL_MODEL_INFERENCE_REAL_PASS_OUTPUT_LENGTH="+str(len(text)))
+          PY
+              exit 0
+            fi
             sleep 1
           done
           echo 'LOCAL_LLM_HEALTH_NOT_PROVEN'
@@ -193,13 +205,13 @@ jobs:
           export HERMES_HOME="$RUNNER_TEMP/hermes-home"
           export HERMES_RUNTIME_DIR="$RUNNER_TEMP/hermes-runtime"
           mkdir -p "$HERMES_HOME" "$HERMES_RUNTIME_DIR"
-          printf 'model:\n  provider: custom\n  default: local-qwen\n  base_url: http://127.0.0.1:18081/v1\n' > "$HERMES_HOME/config.yaml"
+          printf 'model:\n  provider: custom\n  default: local-qwen\n  base_url: http://127.0.0.1:18081/v1\n  api_key: local-fixture-not-secret\nagent:\n  max_turns: 1\n' > "$HERMES_HOME/config.yaml"
           printf '%s\n' 'Return ONLY Python source code. No backticks, explanations, imports, network, calls except str/strip/casefold. Define exactly one function: def normalize_label(text): return str(text).strip().casefold().' > "$RUNNER_TEMP/request.txt"
           unset GITHUB_TOKEN GH_TOKEN GH_ENTERPRISE_TOKEN OPENAI_API_KEY ANTHROPIC_API_KEY || true
           cd "$RUNNER_TEMP/hermes"
           source ./activate
           set +e
-          hermes chat --query-file "$RUNNER_TEMP/request.txt" --oneshot --format stream-json > "$RUNNER_TEMP/hermes-events.jsonl" 2> "$RUNNER_TEMP/hermes-diagnostics.txt"
+          hermes chat --query-file "$RUNNER_TEMP/request.txt" --oneshot --format stream-json --max-turns 1 --run-budget 80 > "$RUNNER_TEMP/hermes-events.jsonl" 2> "$RUNNER_TEMP/hermes-diagnostics.txt"
           rc=$?
           set -e
           export HERMES_CLI_EXIT="$rc"
