@@ -137,7 +137,8 @@ jobs:
               ' source_sha=' + context.sha + ' base_sha=' + baseSha);
 
   hermes-local-cpu-origin:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/hermes-lab/actions-publisher-20261029-01' }}
+    # Two proof runs reached verified local model but Hermes v0.22.5 CLI failed at inference; freeze until diagnosed.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
