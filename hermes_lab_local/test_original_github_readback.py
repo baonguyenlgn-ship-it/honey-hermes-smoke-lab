@@ -8,6 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 import unittest
+import subprocess
 
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT / "hermes_lab_local/generated/normalize_label.py"
@@ -21,7 +22,8 @@ class GithubOriginalReadback(unittest.TestCase):
     def setUpClass(cls):
         if SOURCE.is_symlink() or PROVENANCE.is_symlink():
             raise AssertionError("SYMLINK_ARTIFACT_REJECTED")
-        source=SOURCE.read_bytes()
+        # Windows checkout can normalize LF to CRLF; attest immutable Git blob bytes, not worktree text.
+        source=subprocess.check_output(("git","show","HEAD:hermes_lab_local/generated/normalize_label.py"),cwd=ROOT)
         cls.provenance=json.loads(PROVENANCE.read_text(encoding="utf-8"))
         assert len(source)==66, "SOURCE_LEN_CHANGED"
         assert hashlib.sha256(source).hexdigest()==EXPECTED_SHA, "SOURCE_SHA_CHANGED"

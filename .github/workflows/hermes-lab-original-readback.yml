@@ -6,6 +6,7 @@ on:
       - hermes-lab/actions-publisher-20261029-01
     paths:
       - .github/workflows/hermes-lab-original-readback.yml
+      - hermes_lab_local/test_original_github_readback.py
   workflow_dispatch:
 
 permissions:
