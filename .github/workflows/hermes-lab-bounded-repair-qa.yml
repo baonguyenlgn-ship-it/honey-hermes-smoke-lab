@@ -1,0 +1,41 @@
+name: Hermes LAB bounded-repair state machine QA
+
+on:
+  push:
+    branches:
+      - hermes-lab/actions-publisher-20261029-01
+    paths:
+      - hermes_lab_local/repair_loop.py
+      - hermes_lab_local/repair_broker.py
+      - hermes_lab_local/codespaces_repair_loop.sh
+      - hermes_lab_local/test_bounded_repair.py
+      - .github/workflows/hermes-lab-bounded-repair-qa.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hermes-bounded-repair-source-qa
+  cancel-in-progress: false
+
+jobs:
+  independent-fixture-qa-not-live-hermes:
+    runs-on: windows-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Read-only exact GitHub SHA
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Bounded repair state machine and publisher adversarial fixture tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "HEAD_SHA_MISMATCH" }
+          python -m unittest hermes_lab_local.test_bounded_repair -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m py_compile hermes_lab_local/repair_loop.py hermes_lab_local/repair_broker.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "HERMES_BOUNDED_REPAIR_FIXTURE_QA_PASS_NOT_REAL_PROVIDER_REPAIR"
