@@ -12,12 +12,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: hermes-original-readback-\${{ github.ref }}
+  group: hermes-original-readback-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   original-source-sha-and-behavior:
-    if: \${{ github.ref == 'refs/heads/hermes-lab/actions-publisher-20261029-01' }}
+    if: ${{ github.ref == 'refs/heads/hermes-lab/actions-publisher-20261029-01' }}
     runs-on: windows-latest
     timeout-minutes: 3
     permissions:
@@ -26,13 +26,13 @@ jobs:
       - name: Read-only exact branch SHA
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: \${{ github.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Original bytes, explicit false-authority provenance and 12 focused examples
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          if ((git rev-parse HEAD).Trim() -ne "\${{ github.sha }}") { throw "HEAD_SHA_MISMATCH" }
+          if ((git rev-parse HEAD).Trim() -ne "${{ github.sha }}") { throw "HEAD_SHA_MISMATCH" }
           python --version
           python -m unittest hermes_lab_local.test_original_github_readback -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
