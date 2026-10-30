@@ -1,0 +1,50 @@
+{
+  "schema": "honey.supertonic3-preflight.v1",
+  "state": "RESEARCH_ONLY",
+  "source": {
+    "repo": "Supertone/supertonic-3",
+    "revision": "3cadd1ee6394adea1bd021217a0e650ede09a323",
+    "model_card": "https://huggingface.co/Supertone/supertonic-3",
+    "license": "https://huggingface.co/Supertone/supertonic-3/blob/3cadd1ee6394adea1bd021217a0e650ede09a323/LICENSE"
+  },
+  "languages": [
+    "vi",
+    "ko"
+  ],
+  "voice_presets": [
+    "M1",
+    "M2",
+    "M3",
+    "M4",
+    "M5"
+  ],
+  "file_paths": [
+    "config.json",
+    "onnx/duration_predictor.onnx",
+    "onnx/text_encoder.onnx",
+    "onnx/vector_estimator.onnx",
+    "onnx/vocoder.onnx",
+    "onnx/tts.json",
+    "onnx/unicode_indexer.json",
+    "voice_styles/M1.json"
+  ],
+  "model_type": "ONNX",
+  "license_code": "MIT",
+  "license_weights": "OpenRAIL-M",
+  "constraints": {
+    "read_full_license": true,
+    "disclose_generated_speech": true,
+    "no_owner_impersonation": true,
+    "no_untrusted_pickle": true,
+    "no_remote_code": true,
+    "no_auto_download": true,
+    "commercial_clearance": false,
+    "model_hash_verified": false,
+    "native_listening_pass": false,
+    "voice_timbre_pass": false,
+    "authorized_production": false
+  },
+  "sha256_assets": {},
+  "observed_audio": null,
+  "notes": "OpenRAIL-M explicitly restricts nonconsensual impersonation and undisclosed synthetic content, and carries redistribution/hosted-service requirements. No claims of safe commercial deployment, voice quality, identity or measured CPU cost."
+}

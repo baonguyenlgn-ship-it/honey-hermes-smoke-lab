@@ -1,0 +1,15 @@
+# Bảo V1 — manual viseme-timeline experimental contract (LAB ONLY)
+
+This is a **synthetic/manual animation data interface**, not actual forced phoneme alignment and not a real MC lip-sync. It does not infer the speech content, hear Vietnamese/Korean phonemes, produce a trained face, or prove audiovisual fidelity. The only target is the conceptual anonymous silhouette of Studio Bảo V1.
+
+### Integration and trust boundaries
+
+The existing `BaoAudioTiming.verify()` must first accept a local PCM16 WAV with a SHA-256 digest identical to its three-cue manual caption manifest (exact language, product and duration). `app.js` optionally loads a third **local JSON** sidecar (max 16 KiB) and passes it to `BaoVisemeTiming.verify()`, which permits only `manual_viseme_cues_unverified` and provenance `synthetic_dev_fixture` or `manually_annotated_not_audited`. The sidecar must reference that **same verified WAV SHA** and exactly match language, product and duration. The track must consist of 2–256 contiguous integer-ms segments with no gaps/overlaps, minimum 30ms duration, a strictly enumerated visual shape (`REST,BMP,AA,EE,OO,FV,L`), and `REST` at both audio boundaries. Unknown properties and false "verified" provenance are rejected.
+
+Only if both the prior WAV validator and this independent timeline validator succeed does `app.js` dispatch the in-document local WAV event; the silhouette's small, stylized mouth element follows the exact sidecar shapes on local audio.currentTime/seek/pause. If the sidecar is absent, the existing *20ms RMS amplitude animation* remains the only mode. Invalid WAV, wrong sidecar SHA, changed language/product, reset and user import revoke/hide the visual as before. No WAV or viseme sidecar data is published or exported.
+
+### Fake 1-second test fixtures
+
+Windows Node adversarial tests reject SHA substitution, wrong product/locale, missing duration, overlaps/gaps, unsupported shapes, false automatic model origin, malformed segments, altered prior verified WAV identity, etc. The Chrome desktop/mobile integration supplies a **synthetic one-second WAV**: first 500ms silence, last 500ms pure sine, **never human speech**, plus manually invented viseme keys `REST → BMP → AA → OO → REST`. The browser must show `BMP` at 300ms, `AA` at 520ms, `OO` at 810ms and `REST` near 1000ms; an altered sidecar SHA must reset both audio and mouth. The previous RMS/no-sidecar path is regression-tested in the same Chrome E2E.
+
+**VERDICT if Windows QA succeeds:** manual visual timeline format, time-lookup and browser rejection are technically verified. **NOT_PROVEN:** speech-to-phoneme alignment; native VI/KO correctness, real lip-sync, multi-expression 3D face/owner likeness, real audio-to-video sync latency, legal model rights, human listeners or commercial authorization. Continue with protected true-audio/face AV acceptance only after corresponding Owner permissions, human review and appropriate rights clearances. No paid AI, live, Production, merge, audio distribution, customer messaging, or cross-lane code.

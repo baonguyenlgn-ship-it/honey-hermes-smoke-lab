@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07121e">
+  <title>Honey Studio — Bảo V1 / DEV Preview</title>
+  <meta name="description" content="Offline DEV-only livestream studio cockpit. No customer data, outbound messages, broadcasts or orders.">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail" aria-label="Honey Studio">
+      <div class="rail-logo" aria-label="Honey">H<span>✦</span></div>
+      <div class="rail-icons" aria-hidden="true"><span class="rail-active">◈</span><span>▤</span><span>◉</span><span>▦</span></div>
+      <div class="rail-foot" aria-hidden="true">LAB</div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div class="brand"><div class="eyebrow">HONEY GLOBAL COMMERCE · CREATIVE LAB</div><h1 id="title">Livestream Studio <em>Bảo V1</em></h1></div>
+        <div class="top-actions">
+          <span class="label-pill" id="offline-pill">● DEV · OFFLINE</span>
+          <label class="lang-control"><span id="lang-caption">NGÔN NGỮ</span><select id="lang" aria-label="Choose language"><option value="vi">VI</option><option value="ko">KO</option><option value="en">EN</option><option value="zh">中文</option></select></label>
+        </div>
+      </header>
+      <div class="notice" role="status"><strong>DEV PREVIEW</strong><span id="notice-copy">Bản dựng giao diện nội bộ. Không phát sóng, không gửi tin nhắn hoặc tạo đơn hàng thật.</span></div>
+      <section class="workspace" aria-label="Livestream workspace">
+        <div class="left-stack">
+          <section class="stage-panel" aria-labelledby="stage-heading">
+            <div class="panel-head"><div><span class="section-index">01 / STAGE</span><h2 id="stage-heading">Digital Presenter</h2></div><span class="soft-pill" id="stage-status">READY / NOT LIVE</span></div>
+            <div class="stage-canvas">
+              <div class="stage-orb orb-one"></div><div class="stage-orb orb-two"></div><div class="scene-grid"></div>
+              <div class="scene-head"><span>HONEY <b>STUDIO</b></span><span>KR ◇ VN</span></div>
+              <div class="avatar" role="img" aria-label="Approved Bảo visual not connected; conceptual silhouette only"><div class="avatar-halo"></div><div class="avatar-head"></div><div class="avatar-mouth" id="avatar-mouth" hidden aria-hidden="true"></div><div class="avatar-neck"></div><div class="avatar-jacket"></div></div>
+              <div class="scene-copy"><span id="scene-kicker">VIETNAMESE PRODUCE · KOREA</span><h3>BẢO <span>V1</span></h3><p id="avatar-disclaimer">Vị trí nhân vật · Chờ hình ảnh được phê duyệt</p></div>
+              <div class="caption-overlay" aria-live="polite"><span class="wave-dots">●●●</span><span id="subtitle">Chào mừng đến Honey Trái Cây Việt - Hàn!</span></div>
+              <div class="scene-corner left"></div><div class="scene-corner right"></div>
+            </div>
+            <div class="player-controls">
+              <div class="transport"><button type="button" id="play-btn" class="primary-btn">▶ <span id="play-copy">Chạy mô phỏng</span></button><button type="button" id="reset-btn" class="secondary-btn" aria-label="Reset demo">↺</button><div><span class="muted tiny" id="timeline-caption">STORYBOARD</span><div class="timeline"><div id="progress"></div></div></div></div>
+              <span class="transport-note" id="transport-note">SIMULATION ONLY</span>
+            </div>
+            <div class="scene-stepper" aria-label="Demo storyboard scenes">
+              <button type="button" id="prev-scene-btn" class="scene-nav" disabled><span id="prev-scene-copy">Cảnh trước</span></button>
+              <div class="scene-meta" aria-live="polite"><strong id="scene-counter">01 / 03</strong><span id="scene-caption">CẢNH · CHÀO KHÁCH</span></div>
+              <button type="button" id="next-scene-btn" class="scene-nav" disabled><span id="next-scene-copy">Cảnh tiếp</span></button>
+            </div>
+            <div class="subtitle-export" aria-label="Local timed caption exports">
+              <div class="export-info">
+                <strong id="export-title">PHỤ ĐỀ · MỐC THỜI GIAN ƯỚC TÍNH</strong>
+                <span id="export-note">30 giây DEMO · chưa đồng bộ giọng nói/video</span>
+              </div>
+              <div class="export-actions">
+                <button type="button" class="export-btn" id="export-srt-btn"><span id="srt-label">Xuất SRT</span> ↓</button>
+                <button type="button" class="export-btn" id="export-vtt-btn"><span id="vtt-label">Xuất VTT</span> ↓</button>
+              </div>
+            </div>
+            <div class="audio-input-demo" aria-label="Private offline WAV timing validation">
+              <div class="audio-input-title"><strong id="audio-import-title">KIỂM TRA WAV VÀ MỐC THỜI GIAN</strong><span>LOCAL · DEMO</span></div>
+              <p id="audio-hint">File cục bộ · không tải lên mạng · chưa xác thực giọng nói</p>
+              <div class="audio-input-row">
+                <label>WAV PCM<input id="audio-wav-input" type="file" accept=".wav,audio/wav" aria-label="Local WAV for verification"></label>
+                <label>JSON<input id="audio-json-input" type="file" accept=".json,application/json" aria-label="Local manual timing manifest"></label>
+                <label>VISEME (TÙY CHỌN · DEMO)<input id="viseme-json-input" type="file" accept=".json,application/json" aria-label="Optional local manual unverified viseme timing JSON"></label>
+              </div>
+              <button type="button" id="verify-audio-btn" class="audio-verify-button"><span id="audio-verify-copy">Kiểm tra WAV + JSON</span></button>
+              <p id="audio-verify-status" role="status" aria-live="polite">Chưa có WAV được xác minh</p>
+              <div class="audio-preview" aria-label="Local verified WAV playback only">
+                <strong id="audio-player-note">NO VERIFIED AUDIO PLAYBACK</strong>
+                <span class="mouth-preview-caption" id="mouth-preview-status" role="status">KHẨU HÌNH: CHƯA CÓ WAV · CHƯA LIP-SYNC</span>
+                <audio id="local-audio-player" preload="metadata" controls hidden aria-label="Local WAV preview; not validated speech alignment"></audio>
+                <div class="audio-preview-current" aria-live="polite">
+                  <span id="local-audio-clock">00:00 / 00:00</span>
+                  <span id="local-audio-caption">—</span>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="products-panel" aria-labelledby="products-heading">
+            <div class="panel-head"><div><span class="section-index">02 / SHOWCASE</span><h2 id="products-heading">Product spotlight</h2></div><span class="muted tiny" id="product-note">DỮ LIỆU GIẢ LẬP</span></div>
+            <div class="product-grid" id="products">
+              <button type="button" class="product active" data-product="mango" aria-pressed="true"><span class="product-emoji">🥭</span><span class="product-kind">01 · FRESH</span><strong id="p-mango">Xoài Việt Nam</strong><span class="product-tag">HONEY SELECT</span></button>
+              <button type="button" class="product" data-product="coconut" aria-pressed="false"><span class="product-emoji">🥥</span><span class="product-kind">02 · FRESH</span><strong id="p-coconut">Dừa tươi</strong><span class="product-tag">HONEY SELECT</span></button>
+              <button type="button" class="product" data-product="pomelo" aria-pressed="false"><span class="product-emoji">🍈</span><span class="product-kind">03 · FRESH</span><strong id="p-pomelo">Bưởi Việt Nam</strong><span class="product-tag">HONEY SELECT</span></button>
+            </div>
+          </section>
+        </div>
+        <aside class="right-stack">
+          <section class="script-panel" aria-labelledby="script-heading">
+            <div class="panel-head"><div><span class="section-index">03 / SCRIPT ASSIST</span><h2 id="script-heading">Talking points</h2></div><span class="round-symbol">✧</span></div>
+            <p class="muted small" id="script-help">Kịch bản thử để người dẫn giới thiệu sản phẩm đang chọn.</p>
+            <div class="script-text" id="script-content">Mời cả nhà khám phá xoài Việt Nam cùng Honey. Xin vui lòng xác nhận loại và ngày giao trước khi đặt hàng.</div>
+            <div class="script-foot"><span id="script-state">DRAFT · VI</span><span>HONEY LAB / V1</span></div>
+          </section>
+          <section class="comments-panel" aria-labelledby="comments-heading">
+            <div class="panel-head"><div><span class="section-index">04 / COMMENT RADAR</span><h2 id="comments-heading">Chat simulator</h2></div><span class="soft-pill">MOCK</span></div>
+            <div class="comment"><div class="avatar-mini">K</div><div><b>Demo Buyer 01 <small>· MOCK</small></b><p id="comment-one">Có giao 택배 không?</p></div></div>
+            <div class="comment"><div class="avatar-mini purple">V</div><div><b>Demo Buyer 02 <small>· MOCK</small></b><p id="comment-two">Xoài có loại chín không?</p></div></div>
+            <button type="button" id="reply-btn" class="outline-btn"><span id="reply-copy">Soạn phản hồi mẫu</span> ↗</button>
+            <div class="reply-box" id="reply-box" role="status" aria-live="polite"><span id="reply-label">BẢN NHÁP · CHƯA GỬI</span><p id="reply-content">—</p></div>
+          </section>
+          <section class="orders-panel"><div><span class="section-index">05 / INTENT REVIEW</span><h2 id="intent-heading">Review inbox</h2><p class="muted small" id="intent-copy">Chỉ là nháp mô phỏng. Không ghi ERP.</p></div><div class="counter"><strong id="draft-count">0</strong><span>DEMO</span></div><button type="button" id="draft-btn" class="outline-btn"><span id="draft-copy">Thêm ý định mua giả lập</span> +</button></section>
+        </aside>
+      </section>
+      <footer><span>HONEY × VIETFORCE — TYM FOOD</span><span id="footer-safety">NO LIVE · NO SALES WRITES · NO EXTERNAL CONNECTION</span><span>BUILD / LAB V1</span></footer>
+    </main>
+  </div>
+  <script src="./subtitles.js"></script>
+  <script src="./audio_timing.js"></script>
+  <script src="./mouth_energy.js"></script>
+  <script src="./viseme_timing.js"></script>
+  <script src="./mouth_preview.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

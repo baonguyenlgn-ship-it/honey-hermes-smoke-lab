@@ -1,0 +1,7 @@
+# Eight original human-review script signals — technical research only
+
+Added a single Windows lab execution stage for the exact existing `listening_qa_protocol.json` four Vietnamese + four Korean sentences. The `ReviewCorpus` mode must run after the exact ten SHA256-locked Python wheels are installed in an isolated Windows CPython 3.12 virtualenv and four Supertonic 3 ONNX assets are verified against their official published hashes at model snapshot `3cadd1ee6394adea1bd021217a0e650ede09a323`.
+
+The test seeds NumPy per script, runs eight generic M1 voice syntheses in memory, calculates per-script text/audio digests and signal characteristics (duration, signal RMS/peak/DC/activity, near-fullscale and clipping fractions), and discards all waveform arrays without writing or uploading WAVs. A separate Node checker independently binds every result to the exact script ID/locale/text hash/seed and locked runtime provenance, catches duplicated outputs or severe signal defects, and rejects any false native-listener, commercial or Production PASS flags.
+
+**An objective waveform signal PASS does not establish intelligible native Vietnamese/Korean pronunciation, male premium timbre, human acceptance, rights, consent, realistic calls, avatar lip-sync or commercial readiness.** This is a limited new 8-script feasibility probe, not a rerun of the previously verified 2-script seeded study. No public audio, no reviewer contact, no paid hosting, no Production or merge.

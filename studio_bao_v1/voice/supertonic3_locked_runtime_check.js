@@ -1,0 +1,30 @@
+"use strict";
+const a=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),crypto=require("node:crypto");
+const root=process.argv[2];a.ok(root&&fs.existsSync(root));
+const m=JSON.parse(fs.readFileSync(path.join(root,"locked-runtime-report.json"),"utf8"));
+const v=JSON.parse(fs.readFileSync(path.join(root,"isolated-runtime-imports.json"),"utf8"));
+const lock=fs.readFileSync(path.join(__dirname,"requirements-win-py312-hashes.txt"));
+a.equal(m.schema,"honey.st3-locked-runtime-execution.v1");
+a.equal(m.status,"HASH_LOCKED_ISOLATED_WINDOWS_VENV_READY");
+a.equal(m.original_lock_sha256,crypto.createHash("sha256").update(lock).digest("hex"));
+a.equal(m.platform,"win32");a.equal(m.python_series,"3.12");
+a.equal(m.locked_count,10);a.equal(m.wheel_count,10);
+a.equal(m.offline_install_verified,true);a.equal(m.installed_versions_verified,true);
+a.equal(m.venv_isolated,true);a.equal(m.global_python_modified,false);
+a.equal(m.model_or_voice_test_executed,false);a.equal(m.commercial_or_production_acceptance,false);
+a.equal(v.venv_isolated,true);a.equal(v.numpy_resolved_in_venv,true);a.equal(v.onnxruntime_resolved_in_venv,true);
+a.equal(v.cpu_provider_available,true);a.equal(v.inference_executed,false);
+a.equal(Object.keys(v.packages).length,10);
+const lines=lock.toString("utf8").trim().split(/\r?\n/),seen=new Set();
+a.equal(lines.length,10);
+for(const w of m.verified_wheels){
+ a.ok(!seen.has(w.name),"DUPLICATE_WHEEL");seen.add(w.name);
+ a.equal(v.packages[w.name],w.version);
+ a.ok(lines.includes(w.name+"=="+w.version+" --hash=sha256:"+w.sha256));
+ a.match(w.sha256,/^[a-f0-9]{64}$/);
+}
+a.equal(seen.size,10);
+a.ok(m.total_wheel_bytes>30000000&&m.total_wheel_bytes<65000000);
+a.ok(!fs.existsSync(path.join(root,"wheelhouse")),"WHEELHOUSE_MUST_BE_REMOVED");
+console.log("ST3_INDEPENDENT_LOCKED_RUNTIME_QA_PASS="+JSON.stringify({packages:seen.size,bytes:m.total_wheel_bytes,isolation:true,offline:true}));
+console.log("ST3_NO_PRODUCTION_PREMIUM_OR_COMMERCIAL_ACCEPTANCE");

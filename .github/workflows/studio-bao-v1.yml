@@ -1,0 +1,708 @@
+name: Honey Studio Bảo V1 — Windows Preview QA
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "studio_bao_v1/**"
+      - ".github/workflows/studio-bao-v1.yml"
+permissions:
+  contents: read
+jobs:
+  studio-windows-qa:
+    # Existing Studio E2E is verified at 40957510094; source-fingerprint only.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact studio PR head without persisting credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Check exact SHA and built-in Node runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}") { throw 'STUDIO_SHA_MISMATCH' }
+          node --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check studio_bao_v1/app.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run offline studio behavior and no-network boundary tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --test studio_bao_v1/tests/studio_smoke.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check studio_bao_v1/voice/voice_candidate_gate.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test studio_bao_v1/tests/voice_candidate_gate.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node studio_bao_v1/voice/voice_candidate_gate.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check studio_bao_v1/voice/supertonic3_preflight_gate.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test studio_bao_v1/tests/supertonic3_preflight.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node studio_bao_v1/voice/supertonic3_preflight_gate.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "STUDIO_WINDOWS_QA_PASS"
+      - name: Real Windows Chrome desktop/mobile E2E and screenshots
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --check studio_bao_v1/tests/browser_e2e.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node studio_bao_v1/tests/browser_e2e.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload DEV-only desktop/mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: studio-bao-v1-windows-browser-screenshots
+          path: ${{ runner.temp }}/honey-studio-bao-v1/*.png
+          if-no-files-found: ignore
+          retention-days: 2
+
+  windows-offline-tts-capability-probe:
+    # Previous English/VI feasibility proof is recorded in checkpoint; skip unrelated KO-only commits.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 6
+    steps:
+      - name: Checkout exact Studio PR head with read-only job token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: SAPI speech voice inventory and bounded offline sample
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}") { throw 'PROBE_HEAD_SHA_MISMATCH' }
+          & ./studio_bao_v1/tests/offline_tts_probe.ps1 -OutputDir "${{ runner.temp }}/studio-bao-tts"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify source WAV bytes, waveform and fail-closed voice availability
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --check studio_bao_v1/tests/offline_tts_check.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node studio_bao_v1/tests/offline_tts_check.js "${{ runner.temp }}/studio-bao-tts"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Independent offline Windows dictation feasibility probe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./studio_bao_v1/tests/offline_asr_probe.ps1 -OutputDir "${{ runner.temp }}/studio-bao-tts"
+          if (-not (Test-Path -LiteralPath "${{ runner.temp }}/studio-bao-tts/offline-asr-probe.json")) { throw 'ASR_PROBE_REPORT_MISSING' }
+          node --check studio_bao_v1/tests/offline_asr_check.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node studio_bao_v1/tests/offline_asr_check.js "${{ runner.temp }}/studio-bao-tts"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish metadata-only capability report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: studio-bao-v1-offline-tts-capability-report
+          path: ${{ runner.temp }}/studio-bao-tts/*-probe.json
+          if-no-files-found: ignore
+          retention-days: 2
+
+  windows-vi-offline-synthesis-research:
+    # Previous English/VI feasibility proof is recorded in checkpoint; skip unrelated KO-only commits.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 9
+    steps:
+      - name: Checkout exact Studio SHA with read-only token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Pinned SHA256 of all three assets before any offline synthesis
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'VI_RESEARCH_SHA_MISMATCH'}
+          & ./studio_bao_v1/voice/vi_synthesis_probe.ps1 -OutputDir "${{ runner.temp }}/studio-bao-vi-speech"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Independent WAV bytes, audio activity and commercial-boundary QA
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/voice/vi_wav_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/vi_wav_check.js "${{ runner.temp }}/studio-bao-vi-speech"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Remove-Item -LiteralPath "${{ runner.temp }}/studio-bao-vi-speech/vi-research-speech.wav" -Force
+      - name: Upload report ONLY — no model, runtime, WAV or likeness
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: studio-bao-vi-offline-synthesis-research-report
+          path: ${{ runner.temp }}/studio-bao-vi-speech/vi-synthesis-probe.json
+          if-no-files-found: error
+          retention-days: 2
+
+  windows-ko-offline-synthesis-research:
+    # Previously successful Korean WAV run 40955324169; freeze until substantive KO TTS delta.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 9
+    steps:
+      - name: Checkout exact Studio SHA with read-only token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Hash-pinned official eSpeak NG Windows package and isolated Korean demo
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'KO_RESEARCH_SHA_MISMATCH'}
+          & ./studio_bao_v1/voice/ko_synthesis_probe.ps1 -OutputDir "${{ runner.temp }}/studio-bao-ko-speech"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Verify Korean WAV via independent Node byte-level checks and delete WAV
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --check studio_bao_v1/voice/ko_wav_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/ko_wav_check.js "${{ runner.temp }}/studio-bao-ko-speech"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Remove-Item -LiteralPath "${{ runner.temp }}/studio-bao-ko-speech/ko-research-speech.wav" -Force
+      - name: Upload only metadata, never installer, WAV or executable
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: studio-bao-ko-offline-research-report
+          path: ${{ runner.temp }}/studio-bao-ko-speech/ko-offline-synthesis-probe.json
+          if-no-files-found: error
+          retention-days: 2
+
+  supertonic3-onxx-fingerprint:
+    # SHA source validated in real Windows run 40958369591: 4/4; avoid repeated download.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Read-only exact SHA checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Stage four pinned ONNX files, SHA256 compare and discard
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'HEAD_MISMATCH'}
+          ./studio_bao_v1/voice/supertonic3_hash_only.ps1 -Out "${{ runner.temp }}/honey-st3"
+      - name: Independently inspect manifest, report, and cleanup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/voice/supertonic3_hash_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_hash_check.js "${{ runner.temp }}/honey-st3"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Upload JSON fingerprint only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: honey-supertonic3-onxx-fingerprint
+          path: ${{ runner.temp }}/honey-st3/st3-hashes.json
+          if-no-files-found: warn
+          retention-days: 2
+
+  supertonic3-m1-bilingual-cpu-lab:
+    # Prior real M1 VI/KO WAV proof accepted at run 40958893601. Freeze repeated synthesis.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Exact SHA read-only checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Stage SHA-pinned ONNX and generic VI KO M1 CPU speech
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'ST3_CPU_HEAD_MISMATCH'}
+          python --version
+          ./studio_bao_v1/voice/supertonic3_m1_windows.ps1 -Out "${{ runner.temp }}/honey-st3-m1"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Independent byte-level WAV and runtime-boundary QA
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/voice/supertonic3_m1_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_m1_check.js "${{ runner.temp }}/honey-st3-m1"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Remove-Item -LiteralPath "${{ runner.temp }}/honey-st3-m1/st3-m1-vi.wav" -Force
+          Remove-Item -LiteralPath "${{ runner.temp }}/honey-st3-m1/st3-m1-ko.wav" -Force
+      - name: Publish metadata only, no speech or weights
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: honey-supertonic3-m1-bilingual-cpu-metadata
+          path: |
+            ${{ runner.temp }}/honey-st3-m1/source-report.json
+            ${{ runner.temp }}/honey-st3-m1/inference.json
+          if-no-files-found: warn
+          retention-days: 2
+
+  supertonic3-m1-five-request-resource-benchmark:
+    # CPU 5/5 load and process memory measured in run 40960164053; preserve PASS.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout pinned PR head with read-only token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Preflight native Windows 64-bit process-memory ABI before downloading model
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          python studio_bao_v1/voice/win_process_memory.py
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Pin all official ONNX digests and measure five concurrent M1 CPU requests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if ((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'M1_BENCH_HEAD_MISMATCH'}
+          python --version
+          ./studio_bao_v1/voice/supertonic3_m1_windows.ps1 -Mode Benchmark -Out "${{ runner.temp }}/honey-m1-bench"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Independent CPU/memory/5-request benchmark report boundary audit
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/voice/supertonic3_m1_benchmark_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_m1_benchmark_check.js "${{ runner.temp }}/honey-m1-bench"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Upload metadata only, never ONNX, WAV, or customer data
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: honey-supertonic3-five-request-cpu-metadata
+          path: |
+            ${{ runner.temp }}/honey-m1-bench/source-report.json
+            ${{ runner.temp }}/honey-m1-bench/benchmark.json
+          if-no-files-found: warn
+          retention-days: 2
+
+  supertonic3-windows-dependency-wheel-hash-lock:
+    # Existing 10-wheel SHA/offline test PASS at run 40961004139; avoid repeated work.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 7
+    steps:
+      - name: Checkout exact Studio PR head with read-only token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Download exact dependency wheels and verify offline hash-locked reinstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'WHEEL_LOCK_HEAD_MISMATCH'}
+          python studio_bao_v1/voice/lock_windows_wheels.py "${{ runner.temp }}/honey-wheels"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Independently reject wheel substitution or false offline/pass claims
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/voice/lock_windows_wheels_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/lock_windows_wheels_check.js "${{ runner.temp }}/honey-wheels"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Publish only hash lock and summary metadata (not wheels)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: honey-supertonic3-windows-cp312-wheel-hash-lock
+          path: |
+            ${{ runner.temp }}/honey-wheels/wheel-lock-report.json
+            ${{ runner.temp }}/honey-wheels/requirements-win-py312-hashes.txt
+          if-no-files-found: warn
+          retention-days: 2
+
+  supertonic3-m1-locked-runtime-e2e:
+    # Prior real Windows bilingual locked-runtime proof PASS at 40963118500; freeze on seed-only delta.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact SHA
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install SHA-locked wheels into offline isolated Windows venv
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'HEAD_CHANGED'}
+          ./studio_bao_v1/voice/supertonic3_install_locked_runtime.ps1 -Out "${{ runner.temp }}/honey-st3-venv"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Independent locked venv dependency inspection
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/voice/supertonic3_locked_runtime_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_locked_runtime_check.js "${{ runner.temp }}/honey-st3-venv"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Emit VI and KO generic M1 audio from ONLY the pinned venv
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./studio_bao_v1/voice/supertonic3_m1_windows.ps1 -Mode Wav -RuntimeDir "${{ runner.temp }}/honey-st3-venv" -Out "${{ runner.temp }}/honey-st3-locked-audio"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Independent audio and runtime identity acceptance
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node studio_bao_v1/voice/supertonic3_m1_check.js "${{ runner.temp }}/honey-st3-locked-audio"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --check studio_bao_v1/voice/supertonic3_locked_e2e_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_locked_e2e_check.js "${{ runner.temp }}/honey-st3-venv" "${{ runner.temp }}/honey-st3-locked-audio"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Remove-Item -LiteralPath "${{ runner.temp }}/honey-st3-locked-audio/st3-m1-vi.wav" -Force
+          Remove-Item -LiteralPath "${{ runner.temp }}/honey-st3-locked-audio/st3-m1-ko.wav" -Force
+      - name: Publish JSON metadata only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: honey-st3-vi-ko-locked-runtime-metadata
+          path: |
+            ${{ runner.temp }}/honey-st3-venv/locked-runtime-report.json
+            ${{ runner.temp }}/honey-st3-venv/isolated-runtime-imports.json
+            ${{ runner.temp }}/honey-st3-locked-audio/source-report.json
+            ${{ runner.temp }}/honey-st3-locked-audio/inference.json
+          if-no-files-found: warn
+          retention-days: 2
+
+  supertonic3-m1-seeded-waveform-qa:
+    # Real seed waveforms 4/4 PASS in run 40964059913; freeze on checker-only mutation tests.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR SHA without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Fail-closed static checker boundary tests, no model transfer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'M1_SEED_QA_HEAD_MISMATCH'}
+          node --check studio_bao_v1/voice/supertonic3_seed_quality_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/supertonic3_seed_quality_guard.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Prepare isolated SHA-locked Windows CPython 3.12 runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./studio_bao_v1/voice/supertonic3_install_locked_runtime.ps1 -Out "${{ runner.temp }}/honey-st3-seed-venv"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_locked_runtime_check.js "${{ runner.temp }}/honey-st3-seed-venv"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Two matching seeds per language, four total bounded in-memory M1 syntheses
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./studio_bao_v1/voice/supertonic3_m1_windows.ps1 -Mode SeedQuality -RuntimeDir "${{ runner.temp }}/honey-st3-seed-venv" -Out "${{ runner.temp }}/honey-st3-seed-quality"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Independent seed and waveform QA, no voice files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node studio_bao_v1/voice/supertonic3_seed_quality_check.js "${{ runner.temp }}/honey-st3-seed-quality"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Upload report metadata only, never model or audio
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: honey-st3-m1-seeded-waveform-quality-metadata
+          path: |
+            ${{ runner.temp }}/honey-st3-seed-venv/locked-runtime-report.json
+            ${{ runner.temp }}/honey-st3-seed-quality/source-report.json
+            ${{ runner.temp }}/honey-st3-seed-quality/seed-quality-report.json
+          if-no-files-found: warn
+          retention-days: 2
+
+  supertonic3-seeded-negative-qa:
+    # Independent tamper-test gate PASS run 40964575771; freeze unchanged tests.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 3
+    steps:
+      - name: Exact head read-only checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Actual acceptance checker must reject fourteen tampered report cases
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'SEED_NEGATIVE_HEAD_MISMATCH'}
+          node --check studio_bao_v1/voice/supertonic3_seed_quality_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/supertonic3_seed_quality_negative.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output "ST3_SEED_QA_TEST_OF_TESTS_FAIL_CLOSED_PASS"
+
+  supertonic3-native-listening-packet-qa:
+    # Native listening packet + 22 negative tests PASS run 40965326028. Freeze unchanged packet.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 3
+    steps:
+      - name: Read-only exact head checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Independently audit bilingual human listening protocol and forged human evidence
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'LISTENING_PROTOCOL_HEAD_MISMATCH'}
+          node --check studio_bao_v1/voice/listening_qa_gate.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/listening_qa_gate.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/listening_qa_gate.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'ST3_HUMAN_LISTENING_PROTOCOL_ONLY_QA_PASS_NO_REAL_LISTENER'
+
+  supertonic3-commercial-legal-preflight-qa:
+    # 19/19 prelaunch rules PASS on run 40965826097; freeze unrelated metadata-only change.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 3
+    steps:
+      - name: Exact SHA read-only checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify license checklist clauses and reject forged production approvals
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'ST3_LICENSE_HEAD_MISMATCH'}
+          node --check studio_bao_v1/voice/supertonic3_openrail_gate.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/supertonic3_openrail_gate.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_openrail_gate.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'ST3_LEGAL_CHECKLIST_ONLY_QA_PASS_NO_COMMERCIAL_CLEARANCE'
+
+  supertonic3-listener-scoring-intake-qa:
+    # 32/32 report screening tests PASS on run 40966783895; freeze unchanged gate.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 3
+    steps:
+      - name: Exact head no-persisted-credential checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Run actual review intake gate and adversarial synthetic scores without audio
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'LISTENER_TRIAGE_HEAD_CHANGED'}
+          node --check studio_bao_v1/voice/listening_score_gate.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/listening_score_gate.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/listening_score_gate.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'ST3_LISTENER_SCORE_SCREEN_ONLY_PASS_NO_HUMAN_EVIDENCE'
+
+  supertonic3-eight-script-in-memory-cpu:
+    # 8/8 real signal generation PASS at 40967161953; freeze on no-model reviewer UI delta.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Exact PR SHA checkout read-only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Fail-closed locked Windows Python runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'ST3_SCRIPT_PROBE_SHA_MISMATCH'}
+          ./studio_bao_v1/voice/supertonic3_install_locked_runtime.ps1 -Out "${{ runner.temp }}/honey-st3-eight-venv"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_locked_runtime_check.js "${{ runner.temp }}/honey-st3-eight-venv"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Generate only eight in-memory signals for all review texts with SHA-pinned ONNX
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./studio_bao_v1/voice/supertonic3_m1_windows.ps1 -Mode ReviewCorpus -RuntimeDir "${{ runner.temp }}/honey-st3-eight-venv" -Out "${{ runner.temp }}/honey-st3-eight-probe"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Independent audio signal and exact eight-script manifest checks
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/voice/supertonic3_eight_script_check.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/voice/supertonic3_eight_script_check.js "${{ runner.temp }}/honey-st3-eight-probe"
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Upload only metadata report with no sample audio
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: honey-st3-eight-script-signals-metadata
+          path: |
+            ${{ runner.temp }}/honey-st3-eight-probe/source-report.json
+            ${{ runner.temp }}/honey-st3-eight-probe/eight-script-signal-qa.json
+          if-no-files-found: warn
+          retention-days: 2
+
+  supertonic3-private-review-station-browser:
+    # Chrome Windows VI/KO local JSON and mobile/privacy verified PASS 40969004675.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Exact PR HEAD read-only checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Offline reviewer protocol, WAV and tamper contract unit QA
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'ST3_REVIEW_BROWSER_GIT_HEAD_MISMATCH'}
+          node --check studio_bao_v1/reviewer/review_protocol_data.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --check studio_bao_v1/reviewer/review_station_core.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --check studio_bao_v1/reviewer/review_station_ui.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/review_station.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Real Chrome file-only UI with synthetic local PCM and no HTTP outbound
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/tests/review_station_browser_e2e.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/tests/review_station_browser_e2e.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'HONEY_ST3_PRIVATE_REVIEW_STATION_WINDOWS_QA_PASS_NO_REAL_REVIEW'
+
+  supertonic3-offline-native-review-reconciliation:
+    # 19/19 independent offline reviewer merge QA PASS 40969457597; freeze unrelated AV delta.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 3
+    steps:
+      - name: Exact Studio PR HEAD read-only checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Fail-closed offline 4-reviewer metadata reconciliation with adversarial test-of-tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'REVIEW_RECONCILIATION_HEAD_MISMATCH'}
+          node --check studio_bao_v1/reviewer/review_station_merge.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/review_station_merge.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'ST3_OFFLINE_REVIEW_RECONCILIATION_QA_PASS_NO_HUMAN_APPROVAL'
+
+  studio-local-wav-mouth-energy-preview-qa:
+    # Verified WAV + 20ms RMS silhouette PASS in run 40970358264; do not repeat unchanged gate.
+    if: ${{ false }}
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact PR head read only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Fail-closed WAV energy parser and no-lip-sync contract
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'MOUTH_LAB_HEAD_SHA_CHANGED'}
+          node --check studio_bao_v1/mouth_energy.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --check studio_bao_v1/mouth_preview.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --check studio_bao_v1/app.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/mouth_energy.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Chrome desktop/mobile end to end on silence then synthetic tone and SHA rejection
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/tests/browser_e2e.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/tests/browser_e2e.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'HONEY_STUDIO_WAV_AMPLITUDE_PUPPET_PREVIEW_ONLY_PASS_NOT_LIP_SYNC'
+
+  studio-manual-viseme-timing-browser-qa:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'studio-bao-v1/') }}
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact Studio PR SHA without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Independently test manual viseme timeline and fail-closed forged tracks
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if((git rev-parse HEAD).Trim() -ne "${{ github.event.pull_request.head.sha }}"){throw 'MANUAL_VISEME_HEAD_MISMATCH'}
+          node --check studio_bao_v1/viseme_timing.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --check studio_bao_v1/mouth_preview.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --check studio_bao_v1/app.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node --test studio_bao_v1/tests/viseme_timing.test.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+      - name: Chrome browser fake viseme timings, WAV digest refusal, desktop/mobile and no-network regression
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          node --check studio_bao_v1/tests/browser_e2e.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          node studio_bao_v1/tests/browser_e2e.js
+          if($LASTEXITCODE -ne 0){exit $LASTEXITCODE}
+          Write-Output 'ST3_SYNTHETIC_MANUAL_VISEME_CLOCK_PASS_NOT_ACTUAL_LIPSYNC'

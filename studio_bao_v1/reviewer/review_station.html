@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; media-src blob:; connect-src 'none'; img-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none';">
+<title>Honey Studio Bảo V1 — Trạm nghe riêng tư VI / KO</title>
+<link rel="stylesheet" href="./review_station.css">
+<script defer src="./review_protocol_data.js"></script>
+<script defer src="./review_station_core.js"></script>
+<script defer src="./review_station_ui.js"></script>
+</head>
+<body>
+<header class="masthead">
+  <div class="identity"><span class="monogram">H</span><div><div class="eyebrow">HONEY · PRIVATE RESEARCH LAB</div><h1>Trạm kiểm định giọng AI</h1><div class="ko">AI 음성 비공개 평가 · Studio Bảo V1</div></div></div>
+  <div class="pill" id="overall-status" role="status">CHƯA NGHIỆM THU · NOT PROVEN</div>
+</header>
+<main>
+<section class="notice" aria-label="Giới hạn quyền sử dụng">
+ <h2><span class="notice-icon">!</span> Chỉ sử dụng khi có quyền nghe mẫu</h2>
+ <p>Đây là giao diện LAB hoạt động trên máy cục bộ, <strong>không gửi WAV, điểm số hoặc thông tin cá nhân lên mạng</strong>. Giọng M1 là giọng tổng hợp chung, không phải giọng thật của anh Bảo. Trạm này <strong>không xác minh danh tính, không cấp phép thương mại</strong> và không thay thế người nghiệm thu độc lập.</p>
+ <label class="consent"><input type="checkbox" id="session-authorized"><span>Tôi xác nhận đã được bên quản lý mẫu âm thanh cấp quyền nghe trong phiên kiểm định riêng tư này; tôi sẽ không chia sẻ mẫu ra ngoài. / 승인된 비공개 평가입니다.</span></label>
+</section>
+<div class="layout">
+<section class="panel controls" aria-labelledby="session-title">
+ <div class="eyebrow">01 / PHIÊN ĐÁNH GIÁ</div><h2 id="session-title">Thiết lập riêng tư</h2>
+ <label for="locale">Ngôn ngữ người nghe / 평가 언어</label>
+ <select id="locale" disabled><option value="vi">Tiếng Việt — 4 câu</option><option value="ko">한국어 — 4문장</option></select>
+ <label for="reviewer">Mã ẩn danh (8–32 ký tự, không phải tên thật)</label>
+ <input id="reviewer" type="text" maxlength="32" placeholder="vi_reviewer01" autocomplete="off" spellcheck="false" disabled>
+ <div class="small">Không nhập tên, email, số điện thoại hoặc dữ liệu khách hàng. Hai người đánh giá độc lập phải sử dụng mã khác nhau.</div>
+ <hr>
+ <div class="stat"><span>Số câu đã nghe và chấm</span><strong id="progress">0 / 4</strong></div>
+ <div class="progress-track"><div id="progress-bar"></div></div>
+ <button id="export" disabled>Xuất hồ sơ chấm điểm (chỉ JSON)</button>
+ <p id="export-status" class="small" role="status">Chưa có bằng chứng nghe thực tế. Không thể xuất dữ liệu.</p>
+ <button id="reset" class="link-btn" disabled>Xóa phiên khỏi bộ nhớ / 세션 초기화</button>
+</section>
+<section class="panel samples" aria-labelledby="sample-title">
+ <div class="eyebrow">02 / MẪU THỬ</div><h2 id="sample-title">Bốn câu cần nghe</h2>
+ <p class="small">Chọn riêng tệp WAV trên máy cho từng câu. Browser tính SHA-256 cục bộ. Không có WAV đi kèm trang này và không có chế độ tự nghe hoặc tự chấm.</p>
+ <div id="sample-list" aria-live="polite"></div>
+</section>
+</div>
+<footer>HONEY STUDIO · RESEARCH ONLY · NO PRODUCTION · NO COMMERCIAL SIGNOFF · Không có dữ liệu lưu tự động</footer>
+</main>
+</body></html>

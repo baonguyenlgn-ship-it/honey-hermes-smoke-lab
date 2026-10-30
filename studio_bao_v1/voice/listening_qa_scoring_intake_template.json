@@ -1,0 +1,14 @@
+{
+  "schema": "honey.st3-metadata-review-intake.v1",
+  "status": "EMPTY_UNAUTHORIZED",
+  "simulation_only": false,
+  "protocol_script_sha256": "5475ca26774f39250a8a57d108feaf9955a8cfec0b6db38d0cfaac4c34660c4d",
+  "source_revision": "3cadd1ee6394adea1bd021217a0e650ede09a323",
+  "audio_sha256_by_sample": {},
+  "reviews": [],
+  "external_identity_verified": false,
+  "external_consent_verified": false,
+  "human_signoff_verified": false,
+  "commercial_release_authorized": false,
+  "includes_audio": false
+}
