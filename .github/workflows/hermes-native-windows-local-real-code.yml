@@ -1,0 +1,119 @@
+name: Hermes native Windows real local model code and bounded QA repair
+on:
+  push:
+    branches: [hermes-lab/honey-isolated-gateway-diagnostics-20261031]
+    paths:
+      - hermes_lab_local/windows_local_hermes_coding.py
+      - .github/workflows/hermes-native-windows-local-real-code.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hermes-new-real-local-model-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  hermes-real-local-coding:
+    runs-on: windows-latest
+    timeout-minutes: 17
+    steps:
+      - name: Checkout isolated exact source without persisted tokens
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify pinned public Windows CPU model and run real Hermes CLI
+        shell: pwsh
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "WRONG_LAB_HEAD" }
+          if ($env:GITHUB_REPOSITORY -ne 'baonguyenlgn-ship-it/honey-hermes-smoke-lab' -or
+              $env:GITHUB_REF -ne 'refs/heads/hermes-lab/honey-isolated-gateway-diagnostics-20261031') {
+              throw "WRONG_REPO_OR_BRANCH"
+          }
+          # There is NO Nous OAuth, no enrolled host issuer/lease, no repo writer,
+          # no paid provider, and no secrets for this separate loopback CPU LAB.
+          foreach ($key in @('GITHUB_TOKEN','GH_TOKEN','GITHUB_PAT','NOUS_API_KEY',
+                             'OPENAI_API_KEY','ANTHROPIC_API_KEY','OPENROUTER_API_KEY')) {
+            Remove-Item "env:$key" -ErrorAction SilentlyContinue
+          }
+          $dir = Join-Path $env:RUNNER_TEMP 'hermes-win-real-model'
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $zip = Join-Path $dir 'llama-win-cpu.zip'
+          & curl.exe -fLsS --retry 2 --max-time 180 -o $zip 'https://github.com/ggml-org/llama.cpp/releases/download/b12001/llama-b12001-bin-win-cpu-x64.zip'
+          if ($LASTEXITCODE -ne 0) { throw "PINNED_LLAMA_DOWNLOAD_FAIL" }
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne '8b007136e5035c171c2fe6bcdcf074788a992894e06e188245d132223d177839') {
+            throw 'LLAMA_ZIP_SHA256_CHANGED'
+          }
+          $bin = Join-Path $dir 'llama'
+          Expand-Archive -Path $zip -DestinationPath $bin -Force
+          $server = Get-ChildItem $bin -Recurse -File -Filter 'llama-server.exe' | Select-Object -First 1
+          if (-not $server) { throw 'PINNED_WINDOWS_LLAMA_SERVER_MISSING' }
+          $model = Join-Path $dir 'qwen-1p5b-coder-q4_k_m.gguf'
+          & curl.exe -fLsS --retry 2 --max-time 360 -o $model 'https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/2ab9f8f42af02fc212effaef7c4850c885e965f4/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf'
+          if ($LASTEXITCODE -ne 0) { throw 'PINNED_MODEL_DOWNLOAD_FAIL' }
+          if ((Get-FileHash $model -Algorithm SHA256).Hash.ToLower() -ne 'cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046') {
+            throw 'MODEL_PINNED_GGUF_SHA256_CHANGED'
+          }
+          Write-Output "HERMES_WINDOWS_CPU_MODEL_BINARY_BYTES_VERIFIED"
+          $serverout = Join-Path $dir 'private-server.out'
+          $servererr = Join-Path $dir 'private-server.err'
+          $serverProc = Start-Process -FilePath $server.FullName -ArgumentList @(
+            '-m', $model, '--alias', 'local-qwen', '--ctx-size', '4096',
+            '-t', '4', '--host', '127.0.0.1', '--port', '18081',
+            '--parallel', '1') -PassThru -RedirectStandardOutput $serverout -RedirectStandardError $servererr
+          $healthy = $false
+          for($i = 0; $i -lt 90; $i++) {
+            if($serverProc.HasExited) { throw "PINNED_LOCAL_SERVER_EXITED_BEFORE_HEALTH" }
+            try {
+              $health = Invoke-RestMethod -Uri 'http://127.0.0.1:18081/health' -TimeoutSec 2
+              if($health.status -eq 'ok') { $healthy = $true; break }
+            } catch {}
+            Start-Sleep -Seconds 2
+          }
+          if (-not $healthy) { throw "LOCAL_QWEN_HEALTH_NOT_PROVEN" }
+          Write-Output "HERMES_WINDOWS_LOCAL_QWEN_REAL_SERVER_HEALTH_PASS"
+          $checkout = Join-Path $dir 'hermes-pinned-upstream'
+          New-Item -ItemType Directory -Path $checkout | Out-Null
+          & git init -q $checkout
+          if ($LASTEXITCODE -ne 0) { throw "PINNED_HERMES_INIT_FAILED" }
+          & git -C $checkout remote add origin 'https://github.com/NousResearch/hermes-agent.git'
+          & git -C $checkout fetch --quiet --depth 1 origin v0.22.5
+          if ($LASTEXITCODE -ne 0) { throw "PINNED_HERMES_FETCH_FAILED" }
+          $actual = (& git -C $checkout rev-parse 'FETCH_HEAD^{commit}').Trim()
+          if ($actual -ne 'bf0203a794a07aac3ff764972ab9087baa4e4f4e') { throw 'HERMES_UPSTREAM_SHA_CHANGED' }
+          & git -C $checkout checkout --quiet --detach FETCH_HEAD
+          if ($LASTEXITCODE -ne 0) { throw "HERMES_CHECKOUT_FAILED" }
+          $env:HERMES_HOME = Join-Path $dir 'hermes-home'
+          $env:HERMES_RUNTIME_DIR = Join-Path $dir 'hermes-runtime'
+          New-Item -ItemType Directory -Path $env:HERMES_HOME,$env:HERMES_RUNTIME_DIR | Out-Null
+          Set-Location $checkout
+          . .\activate.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'HERMES_NATIVE_ACTIVATION_FAILED' }
+          $config = Join-Path $env:HERMES_HOME 'config.yaml'
+          @'
+          model:
+            provider: custom
+            default: local-qwen
+            base_url: http://127.0.0.1:18081/v1
+            api_key: local-fixture-not-secret
+          agent:
+            max_turns: 1
+            run_budget_seconds: 100
+            api_max_retries: 0
+            auto_recovery_cycles: 0
+            disabled_toolsets:
+              - terminal
+              - file
+              - browser
+              - web
+              - memory
+          '@ | Set-Content -LiteralPath $config -Encoding utf8
+          $env:HERMES_UPSTREAM_SOURCE = $checkout
+          $env:HERMES_PYTHON = if($env:PYTHON) { $env:PYTHON } else { 'python' }
+          Set-Location $env:GITHUB_WORKSPACE
+          python -B -m hermes_lab_local.windows_local_hermes_coding
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "HERMES_NATIVE_WINDOWS_REAL_LOCAL_AI_CODE_QA_ATTEMPT_COMPLETED"
