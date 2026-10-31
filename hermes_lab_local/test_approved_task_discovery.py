@@ -69,6 +69,31 @@ class ReadOnlySelection(unittest.TestCase):
     def test_new_untrusted_item_fails_closed(self):
         self.assertEqual(status([None]),"STOP_UNTRUSTED_COMMENT")
 
+    def test_new_bounded_realistic_two_page_queue(self):
+        from hermes_lab_local.approved_task_discovery import PAGE_SIZE
+        pr = dict(number=PR,state="open",draft=True,
+            head=dict(ref=BRANCH,sha=HEAD,repo=dict(full_name=REPO)),
+            base=dict(repo=dict(full_name=REPO)))
+        old = [ticket(PAST,cid=i+100) for i in range(PAGE_SIZE)]
+        new = [ticket(HEAD,cid=500)]
+        objects = [pr, old, new]
+        seen_urls = []
+        class Response:
+            status = 200
+            def __init__(self,url,body): self.url=url;self.body=body
+            def __enter__(self): return self
+            def __exit__(self,*args): return None
+            def geturl(self): return self.url
+            def read(self,n): return json.dumps(self.body).encode()
+        def get(req,timeout):
+            seen_urls.append(req.full_url)
+            return Response(req.full_url,objects.pop(0))
+        result = read_only_live_discovery(opener=get)
+        self.assertEqual(result["candidate_comment_id"],500)
+        self.assertFalse(result["execution_authority_granted"])
+        self.assertEqual(len(seen_urls),3)
+        self.assertIn("per_page=20&page=2",seen_urls[-1])
+
     def test_new_readback_real_pr_contract_with_mocked_http(self):
         data=[
             dict(number=PR,state="open",draft=True,head=dict(ref=BRANCH,sha=HEAD,
