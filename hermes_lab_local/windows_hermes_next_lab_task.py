@@ -19,6 +19,7 @@ import urllib.request
 from .approved_task_discovery import read_only_live_discovery
 from .windows_local_hermes_direct_agent import actual_model_turn
 from .windows_local_hermes_coding import QaRejected, PINNED_HERMES
+from .strict_model_code_envelope import strict_python_envelope
 
 REPO = "baonguyenlgn-ship-it/honey-hermes-smoke-lab"
 PREVIOUS_RUN_ID = 41209407767
@@ -117,7 +118,15 @@ def main():
     for attempt in range(MAX_REPAIRS+1):
         print("HERMES_AUTOMATIC_NEXT_REAL_MODEL_ATTEMPT="+str(attempt+1),flush=True)
         source_code=actual_model_turn(prompt,attempt,source,temporary)
-        try: checked=qa_new_task(source_code)
+        try:
+            # Extract ONLY raw source or one full Python fenced block.
+            # Never manufacture/edit model code: independent AST/behavior QA
+            # still decides whether the original model's source is valid.
+            try:
+                candidate, envelope_kind = strict_python_envelope(source_code)
+            except ValueError:
+                raise QaRejected("UNTRUSTED_MODEL_CODE_ENVELOPE") from None
+            checked=qa_new_task(candidate)
         except QaRejected as error:
             code=str(error)
             print("HERMES_AUTOMATIC_NEXT_REAL_QA_REJECTED="+code,flush=True)
