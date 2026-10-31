@@ -1,0 +1,63 @@
+name: Hermes native Windows pinned CLI actual preflight
+on:
+  push:
+    branches: [hermes-lab/actions-publisher-20261029-01]
+    paths:
+      - .github/workflows/hermes-windows-pinned-cli-preflight.yml
+
+permissions:
+  contents: read
+
+jobs:
+  windows-hermes-native-cli-no-provider:
+    runs-on: windows-latest
+    timeout-minutes: 9
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact LAB commit with no persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Run genuine upstream pinned Hermes CLI on Windows, no model/lease/secret
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "WRONG_LAB_HEAD" }
+          if ($env:GITHUB_REPOSITORY -ne 'baonguyenlgn-ship-it/honey-hermes-smoke-lab' -or
+              $env:GITHUB_REF -ne 'refs/heads/hermes-lab/actions-publisher-20261029-01') {
+              throw "WRONG_REPO_OR_BRANCH"
+          }
+          $expected = 'bf0203a794a07aac3ff764972ab9087baa4e4f4e'
+          $checkout = Join-Path $env:RUNNER_TEMP 'hermes-native-pinned'
+          $env:HERMES_HOME = Join-Path $env:RUNNER_TEMP 'hermes-native-home'
+          $env:HERMES_RUNTIME_DIR = Join-Path $env:RUNNER_TEMP 'hermes-native-runtime'
+          New-Item -ItemType Directory -Path $checkout,$env:HERMES_HOME,$env:HERMES_RUNTIME_DIR -Force | Out-Null
+          # This Windows execution is intentionally no-inference and does not
+          # possess the owner's Nous OAuth, signer's key, or repo write rights.
+          foreach($key in @('GITHUB_TOKEN','GH_TOKEN','GITHUB_PAT','OPENAI_API_KEY',
+                            'ANTHROPIC_API_KEY','NOUS_API_KEY','OPENROUTER_API_KEY')) {
+              Remove-Item "env:$key" -ErrorAction SilentlyContinue
+          }
+          & git init -q $checkout
+          if ($LASTEXITCODE -ne 0) { throw 'GIT_INIT_FAILED' }
+          & git -C $checkout remote add origin https://github.com/NousResearch/hermes-agent.git
+          if ($LASTEXITCODE -ne 0) { throw 'GIT_REMOTE_FAILED' }
+          & git -C $checkout fetch --quiet --depth 1 origin v0.22.5
+          if ($LASTEXITCODE -ne 0) { throw 'PINNED_UPSTREAM_FETCH_FAILED' }
+          $actual = (& git -C $checkout rev-parse 'FETCH_HEAD^{commit}').Trim()
+          if ($LASTEXITCODE -ne 0 -or $actual -ne $expected) { throw 'HERMES_SOURCE_PIN_MISMATCH' }
+          & git -C $checkout checkout --quiet --detach FETCH_HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'PINNED_CHECKOUT_FAILED' }
+          Set-Location $checkout
+          if (-not (Test-Path '.\activate.ps1')) { throw 'NATIVE_ACTIVATOR_MISSING' }
+          . .\activate.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'NATIVE_ACTIVATION_FAILED' }
+          $help = & hermes --help 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0 -or -not $help -or
+              ($help -notmatch 'chat' -and $help -notmatch 'Hermes')) {
+              throw 'HERMES_NATIVE_WINDOWS_CLI_NOT_RUNNING'
+          }
+          Write-Output "HERMES_PINNED_NATIVE_WINDOWS_CLI_REAL_PASS_NO_PROVIDER_CALL"
+          Write-Output "PINNED_SOURCE_SHA=$expected"
+          Write-Output "MODEL_CALLS=0 AUTHORITY_CLAIMS=0 REPO_WRITES=0"

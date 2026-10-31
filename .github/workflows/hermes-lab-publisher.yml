@@ -1,0 +1,284 @@
+name: Hermes LAB inert artifact publisher transport test
+
+on:
+  push:
+    branches:
+      - hermes-lab/actions-publisher-20261029-01
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hermes-lab-publisher-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  produce-inert-artifact:
+    if: ${{ false }} # Prior fixture transport PASS 40888887910; freeze.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Generate deterministic non-sensitive fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          export TASK_ID="HERMES-LAB-PUBLISH-${GITHUB_RUN_ID}"
+          export SOURCE_SHA="${GITHUB_SHA}"
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          task_id = os.environ["TASK_ID"]
+          source_sha = os.environ["SOURCE_SHA"]
+          payload = (json.dumps({
+              "schema": 1,
+              "task_id": task_id,
+              "source_sha": source_sha,
+              "marker": "synthetic-no-secrets",
+          }, sort_keys=True, separators=(",", ":")) + "\n").encode()
+          Path("out/fixture.json").write_bytes(payload)
+          manifest = {
+              "task_id": task_id,
+              "source_sha": source_sha,
+              "file_name": "fixture.json",
+              "size_bytes": len(payload),
+              "sha256": hashlib.sha256(payload).hexdigest(),
+          }
+          Path("out/manifest.json").write_text(
+              json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Upload fixture from read-only producer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hermes-lab-fixture-${{ github.run_id }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-inert-fixture:
+    if: ${{ false }} # Do not re-run prior fixture publication.
+    needs: produce-inert-artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Download producer artifact as data only
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: hermes-lab-fixture-${{ github.run_id }}
+          path: inbox
+      - name: Validate, publish to isolated branch, and read back
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const fs = require('fs');
+            const crypto = require('crypto');
+            const expectedRepo = 'baonguyenlgn-ship-it/honey-hermes-smoke-lab';
+            const expectedWorkflowBranch = 'hermes-lab/actions-publisher-20261029-01';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            if (owner + '/' + repo !== expectedRepo) throw new Error('repository fence rejected');
+            if (context.ref !== 'refs/heads/' + expectedWorkflowBranch) throw new Error('workflow branch fence rejected');
+            const manifest = JSON.parse(fs.readFileSync('inbox/manifest.json', 'utf8'));
+            const payload = fs.readFileSync('inbox/fixture.json');
+            const taskId = 'HERMES-LAB-PUBLISH-' + context.runId;
+            const payloadSha = crypto.createHash('sha256').update(payload).digest('hex');
+            if (manifest.task_id !== taskId) throw new Error('task ID fence rejected');
+            if (manifest.source_sha !== context.sha) throw new Error('source SHA fence rejected');
+            if (manifest.file_name !== 'fixture.json') throw new Error('filename fence rejected');
+            if (manifest.size_bytes !== payload.length) throw new Error('size fence rejected');
+            if (manifest.sha256 !== payloadSha) throw new Error('SHA-256 fence rejected');
+            const decoded = JSON.parse(payload.toString('utf8'));
+            if (decoded.task_id !== taskId || decoded.source_sha !== context.sha ||
+                decoded.marker !== 'synthetic-no-secrets' || decoded.schema !== 1) {
+              throw new Error('fixture contents fence rejected');
+            }
+            const branch = 'hermes-lab/publish-' + context.runId;
+            const path = 'transport-fixtures/' + taskId + '.json';
+            const {data: main} = await github.rest.repos.getBranch({owner, repo, branch: 'main'});
+            const baseSha = main.commit.sha;
+            try {
+              await github.rest.git.getRef({owner, repo, ref: 'heads/' + branch});
+              throw new Error('task branch already exists; refusing replay');
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            const blob = await github.rest.git.createBlob({
+              owner, repo, content: payload.toString('utf8'), encoding: 'utf-8'
+            });
+            const tree = await github.rest.git.createTree({
+              owner, repo, base_tree: main.commit.commit.tree.sha,
+              tree: [{path, mode: '100644', type: 'blob', sha: blob.data.sha}]
+            });
+            const commit = await github.rest.git.createCommit({
+              owner, repo, message: 'test: publish inert Hermes LAB transport fixture',
+              tree: tree.data.sha, parents: [baseSha]
+            });
+            await github.rest.git.createRef({
+              owner, repo, ref: 'refs/heads/' + branch, sha: commit.data.sha
+            });
+            const {data: readback} = await github.rest.repos.getContent({
+              owner, repo, path, ref: branch
+            });
+            if (Array.isArray(readback) || readback.type !== 'file') throw new Error('readback type mismatch');
+            const readbackBytes = Buffer.from(readback.content, 'base64');
+            const readbackSha = crypto.createHash('sha256').update(readbackBytes).digest('hex');
+            if (readbackSha !== payloadSha || readbackBytes.length !== payload.length ||
+                readback.sha !== blob.data.sha) throw new Error('GitHub readback mismatch');
+            core.notice('Transport fixture published and verified; Hermes AI E2E not tested.');
+            core.notice('run_id=' + context.runId + ' branch=' + branch +
+              ' commit=' + commit.data.sha + ' file_sha256=' + readbackSha +
+              ' source_sha=' + context.sha + ' base_sha=' + baseSha);
+
+  hermes-local-cpu-origin:
+    # Direct llama API PASS, Hermes gateway still FAIL at real turn in 41035348644; frozen to conserve CI.
+    # Require independently diagnosed gateway failure and authorized runtime before any re-enable.
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact LAB source without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Static fail-closed artifact parser QA before downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          python3 -m unittest discover -s hermes_lab_local -p 'test_*.py' -v
+      - name: Download pin-verified CPU-only llama.cpp and Qwen public weights
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/llama-bin"
+          curl -fL --retry 2 --max-time 220 -o "$RUNNER_TEMP/llama.tgz" https://github.com/ggml-org/llama.cpp/releases/download/b12001/llama-b12001-bin-ubuntu-x64.tar.gz
+          echo 'd93cdded4296627ae295e768789039cd1fd1c217e1444b3500d5faf64792ab56  '"$RUNNER_TEMP/llama.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/llama.tgz" -C "$RUNNER_TEMP/llama-bin"
+          curl -fL --retry 2 --max-time 380 -o "$RUNNER_TEMP/model.gguf" https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/2ab9f8f42af02fc212effaef7c4850c885e965f4/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+          echo 'cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046  '"$RUNNER_TEMP/model.gguf" | sha256sum -c -
+          server="$(find "$RUNNER_TEMP/llama-bin" -type f -name llama-server | head -n 1)"
+          test -n "$server"
+          echo "HERMES_LLAMA_SERVER=$server" >> "$GITHUB_ENV"
+          echo "HERMES_LLAMA_LD=$(dirname "$server")" >> "$GITHUB_ENV"
+          echo 'HERMES_CPU_MODEL_BYTES_VERIFIED'
+      - name: Local model server loopback only; no GH write or Nous auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LD_LIBRARY_PATH="$HERMES_LLAMA_LD:${LD_LIBRARY_PATH:-}"
+          "$HERMES_LLAMA_SERVER" -m "$RUNNER_TEMP/model.gguf" --alias local-qwen --ctx-size 8192 -t 4 --host 127.0.0.1 --port 18081 >"$RUNNER_TEMP/llama.log" 2>&1 &
+          for n in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:18081/health > /dev/null 2>&1; then
+              curl -fsS --max-time 65 -X POST http://127.0.0.1:18081/v1/chat/completions -H 'Content-Type: application/json' -d '{"model":"local-qwen","messages":[{"role":"user","content":"Return only the word TEST"}],"max_tokens":20,"stream":false}' > "$RUNNER_TEMP/local-probe.json"
+              python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path(os.environ["RUNNER_TEMP"])/"local-probe.json"
+          data=json.loads(p.read_text())
+          text=str(data["choices"][0]["message"].get("content") or "").strip()
+          if not text: raise SystemExit("LOCAL_MODEL_INFERENCE_NOT_PROVEN")
+          print("LOCAL_MODEL_INFERENCE_REAL_PASS_OUTPUT_LENGTH="+str(len(text)))
+          PY
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'LOCAL_LLM_HEALTH_NOT_PROVEN'
+          exit 1
+      - name: Pin Hermes v0.22.5 and perform isolated one-shot local inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/hermes"
+          git -C "$RUNNER_TEMP/hermes" remote add origin https://github.com/NousResearch/hermes-agent.git
+          git -C "$RUNNER_TEMP/hermes" fetch --depth 1 origin v0.22.5
+          git -C "$RUNNER_TEMP/hermes" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/hermes" rev-parse HEAD)" = 'bf0203a794a07aac3ff764972ab9087baa4e4f4e'
+          export HERMES_HOME="$RUNNER_TEMP/hermes-home"
+          export HERMES_RUNTIME_DIR="$RUNNER_TEMP/hermes-runtime"
+          mkdir -p "$HERMES_HOME" "$HERMES_RUNTIME_DIR"
+          printf 'model:\n  provider: custom\n  default: local-qwen\n  base_url: http://127.0.0.1:18081/v1\n  api_key: local-fixture-not-secret\nagent:\n  max_turns: 1\n  run_budget_seconds: 80\n' > "$HERMES_HOME/config.yaml"
+          printf '%s\n' 'Return ONLY Python source code. No backticks, explanations, imports, network, calls except str/strip/casefold. Define exactly one function: def normalize_label(text): return str(text).strip().casefold().' > "$RUNNER_TEMP/request.txt"
+          unset GITHUB_TOKEN GH_TOKEN GH_ENTERPRISE_TOKEN OPENAI_API_KEY ANTHROPIC_API_KEY || true
+          cd "$RUNNER_TEMP/hermes"
+          source ./activate
+          set +e
+          hermes chat --query-file "$RUNNER_TEMP/request.txt" --oneshot --format stream-json --max-turns 1 > "$RUNNER_TEMP/hermes-events.jsonl" 2> "$RUNNER_TEMP/hermes-diagnostics.txt"
+          rc=$?
+          set -e
+          export HERMES_CLI_EXIT="$rc"
+          python3 - <<'PY'
+          import json,os,re
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])
+          records=[]
+          for line in (root/"hermes-events.jsonl").read_text(errors="replace").splitlines():
+              try:
+                  x=json.loads(line)
+                  if isinstance(x,dict):records.append(x)
+              except json.JSONDecodeError:
+                  pass
+          terminal=next((x for x in reversed(records) if x.get("type")=="result"),{})
+          if int(os.environ["HERMES_CLI_EXIT"]) or terminal.get("exit_code",0):
+              reason=str(terminal.get("error") or (root/"hermes-diagnostics.txt").read_text(errors="replace")[-450:])
+              reason=re.sub(r"(?i)(token|key|secret|authorization)[^ ]{0,90}", "[REDACTED]",reason)
+              print("HERMES_LOCAL_CLI_DIAGNOSTIC_FAILURE="+reason[:450])
+              raise SystemExit(1)
+          result=str(terminal.get("text") or "")
+          if not result.strip():
+              print("HERMES_LOCAL_CLI_EMPTY_FINAL_TEXT")
+              raise SystemExit(1)
+          (root/"hermes-response.txt").write_text(result,encoding="utf8")
+          print("HERMES_LOCAL_CLI_GENERATED_TEXT_LENGTH="+str(len(result)))
+          PY
+          cd "$GITHUB_WORKSPACE"
+          python3 hermes_lab_local/verify_artifact.py "$RUNNER_TEMP/hermes-response.txt" "$RUNNER_TEMP/origin" "${{ github.run_id }}" bf0203a794a07aac3ff764972ab9087baa4e4f4e
+      - name: Upload only bounded original source and metadata, no models or credentials
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: hermes-local-cpu-origin-${{ github.run_id }}
+          path: ${{ runner.temp }}/origin/
+          if-no-files-found: error
+          retention-days: 1
+
+  hermes-codespaces-host-admission-qa:
+    # Verified 18/18 source-contract QA on Windows-independent Ubuntu run 41040701291; freeze on unrelated changes.
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    permissions:
+      contents: read
+    steps:
+      - name: Exact LAB HEAD checkout with credentials disabled
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Static Codespaces host admission and protected Hermes-source handoff tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          for s in hermes_lab_local/codespaces_prepare.sh hermes_lab_local/codespaces_auth_bootstrap.sh hermes_lab_local/codespaces_smoke.sh; do bash -n "$s"; done
+          python3 -m unittest discover -s hermes_lab_local -p 'test_*.py' -v
+          python3 -m py_compile hermes_lab_local/verify_artifact.py hermes_lab_local/codespaces_stream_gate.py hermes_lab_local/codespaces_broker.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          c=json.loads(Path(".devcontainer/devcontainer.json").read_text())
+          assert c["remoteUser"] == "vscode"
+          assert c["forwardPorts"] == []
+          assert c["postCreateCommand"] == "bash hermes_lab_local/codespaces_prepare.sh"
+          assert not any("GITHUB_TOKEN" in str(x) for x in c.values())
+          print("HERMES_CODESPACES_DEVCONTAINER_NO_AUTOMATED_OAUTH_OR_MODEL_PASS")
+          PY
+          echo 'HERMES_CODESPACES_PREP_STATIC_QA_PASS_NO_REAL_OAUTH_NO_HERMES_E2E'

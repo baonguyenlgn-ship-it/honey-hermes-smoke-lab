@@ -1,0 +1,31 @@
+name: Hermes LAB new host-only live gate negative QA
+on:
+  push:
+    branches: [hermes-lab/actions-publisher-20261029-01]
+    paths:
+      - hermes_lab_local/live_execution_gate.py
+      - hermes_lab_local/test_live_execution_gate.py
+      - .github/workflows/hermes-live-gate-source-qa.yml
+
+permissions:
+  contents: read
+
+jobs:
+  new-admission-negative-checks-only:
+    runs-on: windows-latest
+    timeout-minutes: 4
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact source, do not retain Git credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Run ONLY new host-admission/cost-denial tests (no model or secrets)
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: cryptography==46.0.3
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B -m unittest hermes_lab_local.test_live_execution_gate -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "HERMES_NEW_LIVE_BRIDGE_SOURCE_ONLY_QA_PASS_NOT_GATE_B_OR_MODEL"

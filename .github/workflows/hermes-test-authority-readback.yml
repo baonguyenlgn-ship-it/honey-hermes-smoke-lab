@@ -1,0 +1,30 @@
+name: Hermes real TEST authority Windows verification
+on:
+  push:
+    branches: [hermes-lab/actions-publisher-20261029-01]
+    paths: ['hermes_lab_local/authority_test/**', '.github/workflows/hermes-test-authority-readback.yml', '.gitattributes']
+permissions:
+  contents: read
+jobs:
+  independent-real-authority-verification:
+    runs-on: windows-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Official public cryptographic verifier dependency
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: cryptography==46.0.3
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Independently verify actual host enrollment signature and negative scope controls
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'CHECKOUT_SHA_MISMATCH' }
+          python -B hermes_lab_local/authority_test/verify.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git hash-object hermes_lab_local/authority_test/lease.json
+          Get-FileHash hermes_lab_local/authority_test/audit.json -Algorithm SHA256
+          Write-Output "REAL_HOST_TEST_AUTHORITY_ONLY_NOT_MODEL_E2E $env:GITHUB_SHA"

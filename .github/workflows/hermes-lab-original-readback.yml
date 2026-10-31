@@ -1,0 +1,40 @@
+name: Hermes LAB single-origin GitHub readback
+
+on:
+  push:
+    branches:
+      - hermes-lab/actions-publisher-20261029-01
+    paths:
+      - .github/workflows/hermes-lab-original-readback.yml
+      - hermes_lab_local/test_original_github_readback.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hermes-original-readback-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  original-source-sha-and-behavior:
+    if: ${{ github.ref == 'refs/heads/hermes-lab/actions-publisher-20261029-01' }}
+    runs-on: windows-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Read-only exact branch SHA
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Original bytes, explicit false-authority provenance and 12 focused examples
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ((git rev-parse HEAD).Trim() -ne "${{ github.sha }}") { throw "HEAD_SHA_MISMATCH" }
+          python --version
+          python -m unittest hermes_lab_local.test_original_github_readback -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "HERMES_LAB_ORIGINAL_SHA_12_CASES_WINDOWS_PASS_NOT_PROVIDER_SIGNED_OR_AUTOREPAIR"

@@ -1,0 +1,28 @@
+name: Hermes LAB automatic NEXT_SAFE_STEP Windows QA
+on:
+  push:
+    branches: [hermes-lab/actions-publisher-20261029-01]
+    paths:
+      - hermes_lab_local/automatic_next_step.py
+      - hermes_lab_local/test_automatic_next_step.py
+      - .github/workflows/hermes-next-safe-step-qa.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-next-step-denial-qa:
+    runs-on: windows-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout exact branch without durable credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Test ONLY new automatic step boundary cases
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "HEAD_MISMATCH" }
+          python -B -m unittest hermes_lab_local.test_automatic_next_step -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "HERMES_NEXT_SAFE_STEP_SOURCE_ONLY_PASS_NOT_LIVE_AUTONOMY"
