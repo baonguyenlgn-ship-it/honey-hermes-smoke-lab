@@ -1,0 +1,114 @@
+name: Hermes isolated Windows gateway early refusal no model diagnostic
+on:
+  push:
+    branches: [hermes-lab/honey-isolated-gateway-diagnostics-20261031]
+    paths:
+      - .github/workflows/hermes-windows-no-model-gateway-refusal.yml
+
+permissions:
+  contents: read
+
+jobs:
+  precise-early-gateway-refusal:
+    runs-on: windows-latest
+    timeout-minutes: 7
+    steps:
+      - name: Checkout exact private-lab code without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Diagnose only CLI startup refusing loopback provider, no model download
+        shell: pwsh
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "WRONG_HEAD" }
+          if ($env:GITHUB_REF -ne 'refs/heads/hermes-lab/honey-isolated-gateway-diagnostics-20261031') { throw 'WRONG_BRANCH' }
+          foreach($key in @('GITHUB_TOKEN','GH_TOKEN','GITHUB_PAT','NOUS_API_KEY',
+                            'OPENAI_API_KEY','ANTHROPIC_API_KEY','OPENROUTER_API_KEY')) {
+            Remove-Item "env:$key" -ErrorAction SilentlyContinue
+          }
+          $homeDir = Join-Path $env:RUNNER_TEMP 'hermes-no-provider-evidence'
+          $sourceDir = Join-Path $homeDir 'upstream'
+          $env:HERMES_HOME = Join-Path $homeDir 'home'
+          $env:HERMES_RUNTIME_DIR = Join-Path $homeDir 'runtime'
+          New-Item -ItemType Directory -Path $sourceDir,$env:HERMES_HOME,$env:HERMES_RUNTIME_DIR -Force | Out-Null
+          & git init -q $sourceDir
+          if($LASTEXITCODE -ne 0) { throw "GIT_INIT_FAIL" }
+          & git -C $sourceDir remote add origin https://github.com/NousResearch/hermes-agent.git
+          & git -C $sourceDir fetch --quiet --depth 1 origin v0.22.5
+          if($LASTEXITCODE -ne 0) { throw "UPSTREAM_FETCH_FAILED" }
+          $sha = (& git -C $sourceDir rev-parse 'FETCH_HEAD^{commit}').Trim()
+          if($sha -ne 'bf0203a794a07aac3ff764972ab9087baa4e4f4e') { throw "PIN_MISMATCH" }
+          & git -C $sourceDir checkout --quiet --detach FETCH_HEAD
+          if($LASTEXITCODE -ne 0) { throw "GIT_CHECKOUT_FAILED" }
+          Set-Location $sourceDir
+          . .\activate.ps1
+          if($LASTEXITCODE -ne 0) { throw "HERMES_ACTIVATE_FAIL" }
+          @'
+          model:
+            provider: custom
+            default: local-qwen
+            base_url: http://127.0.0.1:18081/v1
+            api_key: local-fixture-not-secret
+          agent:
+            max_turns: 1
+            api_max_retries: 0
+            auto_recovery_cycles: 0
+            disabled_toolsets:
+              - terminal
+              - file
+              - browser
+              - web
+              - memory
+          '@ | Set-Content -LiteralPath (Join-Path $env:HERMES_HOME 'config.yaml') -Encoding utf8
+          $env:HERMES_PROBE_PYTHON = if($env:PYTHON) { $env:PYTHON } else { 'python' }
+          $env:HERMES_PROBE_SOURCE = $sourceDir
+          Set-Location $env:GITHUB_WORKSPACE
+          @'
+          import hashlib, json, os, re, subprocess
+          from pathlib import Path
+          source = Path(os.environ["HERMES_PROBE_SOURCE"])
+          home = Path(os.environ["HERMES_HOME"])
+          request = home / "single-query.txt"
+          request.write_text("Return the word OK",encoding="utf-8")
+          command = [os.environ["HERMES_PROBE_PYTHON"],str(source / "hermes"),"chat",
+              "--query-file",str(request),"--oneshot","--format","stream-json",
+              "--max-turns","1","--provider","custom","--model","local-qwen",
+              "--base-url","http://127.0.0.1:18081/v1",
+              "--api-key","local-fixture-not-secret"]
+          try:
+              p=subprocess.run(command,cwd=source,capture_output=True,timeout=35,check=False)
+          except (OSError,subprocess.TimeoutExpired):
+              print("HERMES_STARTUP_PROBE_FAILED_OR_TIMED_OUT_NO_MODEL")
+              raise SystemExit(1)
+          events=[]
+          for line in p.stdout.decode("utf-8","replace").splitlines()[:100]:
+              try: event=json.loads(line)
+              except (TypeError,ValueError): continue
+              if isinstance(event,dict): events.append(event)
+          errors=[e for e in events if e.get("type")=="result"]
+          print("HERMES_STARTUP_CLI_EXIT="+str(p.returncode))
+          print("HERMES_STARTUP_EVENT_COUNT="+str(len(events)))
+          print("HERMES_STARTUP_TERMINAL_PRESENT="+str(bool(errors)))
+          if errors:
+              e=errors[-1]
+              msg=str(e.get("error") or "")
+              # This isolated runner has no real credentials. Redact any
+              # path, key-like span, URL other than the known loopback.
+              msg=re.sub(r"(?i)(?:bearer|token|password|secret|api.key)\\s*[:= ]\\s*\\S+",
+                         "[REDACTED]",msg)
+              msg=re.sub(r"https?://(?!127\\.0\\.0\\.1:18081)[^\\s]+","[URL]",msg)
+              msg=re.sub(r"(?:[a-zA-Z]:\\\\|/home/|/workspaces/)[^\\s]+","[PATH]",msg)
+              msg=msg[:280]
+              print("HERMES_STARTUP_ERROR_REDACTED="+msg)
+              print("HERMES_STARTUP_ERROR_SHA256="+hashlib.sha256(str(e.get("error") or "").encode()).hexdigest())
+          stderr = p.stderr.decode("utf-8","replace")
+          print("HERMES_STARTUP_STDERR_HAS_ERROR="+str("Error:" in stderr))
+          print("NO_MODEL_BINARY_OR_PROVIDER_INFERENCE_USED")
+          if p.returncode == 0:
+              print("CLI_ACCEPTED_WITHOUT_LOCAL_MODEL_UNEXPECTED_RECHECK")
+          '@ | python -B -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "HERMES_EARLY_REFUSAL_DIAGNOSTIC_COMPLETE_NOT_MODEL_PASS"
