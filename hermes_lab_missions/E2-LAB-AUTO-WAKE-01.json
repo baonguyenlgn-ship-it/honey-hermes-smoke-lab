@@ -11,5 +11,6 @@
   "may_spend": false,
   "source_e1_verified_run": 41220878044,
   "predecessor_d_verified_run": 41216407415,
-  "next_safe_step": "WRITE_READ_ONLY_ARTIFACT_RECEIPT"
+  "next_safe_step": "WRITE_READ_ONLY_ARTIFACT_RECEIPT",
+  "event_revision": 2
 }
