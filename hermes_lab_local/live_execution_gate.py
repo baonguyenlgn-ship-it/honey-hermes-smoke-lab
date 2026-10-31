@@ -105,11 +105,19 @@ def run_supervised_once(live_comment_id: int, *, run_command=None):
     pr, legacy = fetch_snapshot()
     live = fetch_live_consent(live_comment_id)
     # No effect: this check must complete before consuming one-use admission.
-    prepare(pr, legacy, bundle, host, live, now=now)
+    ready = prepare(pr, legacy, bundle, host, live, now=now)
+    # V3.1 prepare/claim explicitly return permitted_to_execute=False:
+    # signing an admission is NOT authorization to launch a model.  Reject
+    # BEFORE claiming/consuming the one-use ledger; never infer permission.
+    if not isinstance(ready, dict) or ready.get("permitted_to_execute") is not True:
+        raise AdmissionDenied("EXECUTION_PERMISSION_NOT_GRANTED")
     pr_again, _ = fetch_snapshot()
     receipt = claim(pr, legacy, pr_again, bundle, host, live, now=int(time.time()))
-    if receipt.get("status") != "CLAIMED_NOT_EXECUTED" or receipt.get("owner_live_comment_id") != live_comment_id:
-        raise AdmissionDenied("AUTHENTICATED_ONCE_ONLY_CLAIM_MISSING")
+    if (not isinstance(receipt, dict)
+            or receipt.get("status") != "CLAIMED_NOT_EXECUTED"
+            or receipt.get("owner_live_comment_id") != live_comment_id
+            or receipt.get("permitted_to_execute") is not True):
+        raise AdmissionDenied("EXECUTION_PERMISSION_NOT_GRANTED")
     # Once claimed, an error / crash is NOT retried: ledger remains consumed.
     # The existing script drops GitHub tokens and invokes uid999 in a private LAB.
     runner = subprocess.run if run_command is None else run_command
