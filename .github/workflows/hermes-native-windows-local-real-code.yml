@@ -62,7 +62,7 @@ jobs:
           $serverout = Join-Path $dir 'private-server.out'
           $servererr = Join-Path $dir 'private-server.err'
           $serverProc = Start-Process -FilePath $server.FullName -ArgumentList @(
-            '-m', $model, '--alias', 'local-qwen', '--ctx-size', '4096',
+            '-m', $model, '--alias', 'local-qwen', '--ctx-size', '65536',
             '-t', '4', '--host', '127.0.0.1', '--port', '18081',
             '--parallel', '1') -PassThru -RedirectStandardOutput $serverout -RedirectStandardError $servererr
           $healthy = $false
@@ -100,6 +100,7 @@ jobs:
             default: local-qwen
             base_url: http://127.0.0.1:18081/v1
             api_key: local-fixture-not-secret
+            context_length: 65536
           agent:
             max_turns: 1
             run_budget_seconds: 100
