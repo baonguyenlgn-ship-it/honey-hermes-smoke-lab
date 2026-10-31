@@ -1,0 +1,15 @@
+{
+  "schema": "honey.hermes.e2.fixed-readonly-test-mission.v1",
+  "task_id": "HERMES-E2-EVENT-WAKE-READONLY-01",
+  "allowed_scope": "READ_ONLY_LAB_EVENT_RECEIPT",
+  "origin": "OWNER_CURRENT_CHAT_TEST_MANDATE",
+  "approved_for_model_execution": false,
+  "may_publish_code": false,
+  "may_access_core": false,
+  "may_merge_main": false,
+  "may_deploy_production": false,
+  "may_spend": false,
+  "source_e1_verified_run": 41220878044,
+  "predecessor_d_verified_run": 41216407415,
+  "next_safe_step": "WRITE_READ_ONLY_ARTIFACT_RECEIPT"
+}
