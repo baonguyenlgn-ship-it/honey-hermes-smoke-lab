@@ -1,0 +1,27 @@
+name: Hermes E1 only original-source artifact contract QA
+on:
+  push:
+    branches: [hermes-lab/e1-durable-evidence-20261101]
+    paths:
+      - hermes_lab_local/test_e1_durable_evidence.py
+      - .github/workflows/hermes-e1-durable-source-qa.yml
+
+permissions:
+  contents: read
+jobs:
+  e1-pure-source-contract:
+    runs-on: windows-latest
+    timeout-minutes: 4
+    steps:
+      - name: Checkout exact isolated E1 HEAD
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Only NEW E1 source and manifest safety tests
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw 'HEAD_MISMATCH' }
+          if ($env:GITHUB_REF -ne 'refs/heads/hermes-lab/e1-durable-evidence-20261101') { throw 'BRANCH_MISMATCH' }
+          python -B -m unittest hermes_lab_local.test_e1_durable_evidence -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "HERMES_E1_SOURCE_AND_INDEPENDENT_READBACK_CONTRACT_PASS_FIXTURE_ONLY"
