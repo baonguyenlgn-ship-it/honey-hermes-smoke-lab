@@ -1,0 +1,35 @@
+name: Hermes E3 proposed default-branch Owner PR-comment readonly wake
+on:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+jobs:
+  e3-owner-comment-source-origin-and-PR-head:
+    # This workflow has NO effect on a feature branch. It can react to
+    # issue_comment only after independently reviewed merge to default main.
+    if: ${{ github.event.issue.number == 4 && github.event.comment.user.login == 'baonguyenlgn-ship-it' && github.event.action == 'created' }}
+    runs-on: windows-latest
+    timeout-minutes: 4
+    steps:
+      - name: Checkout independently approved default-branch verifier
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Require current main source and exact real comment origin
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -ne 'issue_comment') { throw 'E3_WRONG_GITHUB_EVENT' }
+          if ($env:GITHUB_REPOSITORY -ne 'baonguyenlgn-ship-it/honey-hermes-smoke-lab') { throw 'E3_WRONG_REPO' }
+          if ($env:GITHUB_REF -ne 'refs/heads/main') { throw 'E3_WRONG_DEFAULT_BRANCH' }
+          python -B -m hermes_lab_local.e3_owner_comment_admission
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload read-only Owner origin receipt, not an execution permit
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: hermes-e3-owner-intent-not-executed
+          path: ${{ runner.temp }}/e3-owner-comment-readonly/
+          if-no-files-found: error
+          retention-days: 30
