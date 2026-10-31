@@ -20,6 +20,7 @@ from .approved_task_discovery import read_only_live_discovery
 from .windows_local_hermes_direct_agent import actual_model_turn
 from .windows_local_hermes_coding import QaRejected, PINNED_HERMES
 from .strict_model_code_envelope import strict_python_envelope
+from .low_stock_semantic_qa import qa_semantic_low_stock
 
 REPO = "baonguyenlgn-ship-it/honey-hermes-smoke-lab"
 PREVIOUS_RUN_ID = 41209407767
@@ -77,25 +78,12 @@ def check_predecessor_and_owner_queue() -> dict:
             or queue.get("ledger_claimed") is not False):
         raise RuntimeError("OWNER_QUEUE_PRIVILEGE_STATE_UNTRUSTED")
     return {"predecessor_run":PREVIOUS_RUN_ID,
-            "current_owner_queue":queue["status"],
-            "scope":"fixed-isolated-no-github-writes"}
-
-def qa_new_task(source: str) -> bytes:
-    if not isinstance(source,str):
-        raise QaRejected("NOT_TEXT")
-    raw=source.encode("utf8")
-    if not (35<=len(raw)<=2048) or any(z in source for z in ("\x00","\r","\ufeff")):
-        raise QaRejected("SOURCE_BYTES_INVALID")
-    try: tree=ast.parse(source)
-    except (SyntaxError,ValueError):raise QaRejected("PYTHON_SYNTAX_INVALID") from None
-    if ast.dump(tree,include_attributes=False)!=ast.dump(ast.parse(EXPECTED),include_attributes=False):
-        raise QaRejected("SAFE_AST_NOT_MATCHED")
-    env={"__builtins__":{"int":int}}
-    exec(compile(tree,"<hermes-real-new-task-qa>","exec"),env)
-    for qty,minimum,expected in CASES:
-        if env["is_low_stock"](qty,minimum) is not expected:
-            raise QaRejected("BEHAVIOR_MISMATCH")
-    return raw
+            "current_owner_queue":queue["status"],def qa_new_task(source: str) -> bytes:
+    # The previously exact byte-for-byte AST requirement rejected legitimate
+    # alternate implementations; only the narrowly constrained AST node
+    # allowlist plus independent behavior tests may approve this fixed LAB task.
+    # It prohibits loops, imports, attributes, arbitrary calls and effects.
+    return qa_semantic_low_stock(source)
 
 def main():
     evidence=check_predecessor_and_owner_queue()
