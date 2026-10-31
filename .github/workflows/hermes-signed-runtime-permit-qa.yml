@@ -1,0 +1,33 @@
+name: Hermes signed runtime permit independent Windows source QA
+on:
+  push:
+    branches: [hermes-lab/honey-isolated-gateway-diagnostics-20261031]
+    paths:
+      - hermes_lab_local/signed_runtime_permit.py
+      - hermes_lab_local/test_signed_runtime_permit.py
+      - .github/workflows/hermes-signed-runtime-permit-qa.yml
+
+permissions:
+  contents: read
+
+jobs:
+  signed-permit-eligibility-only:
+    runs-on: windows-latest
+    timeout-minutes: 4
+    steps:
+      - name: Checkout exact nonshared branch source only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify only NEW signed-permit QA, not previously passed tests
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "WRONG_SOURCE_HEAD" }
+          if ($env:GITHUB_REF -ne 'refs/heads/hermes-lab/honey-isolated-gateway-diagnostics-20261031') {
+            throw "SHARED_BRANCH_DENIED"
+          }
+          python -m pip install --disable-pip-version-check --only-binary=:all: cryptography==46.0.3
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B -m unittest hermes_lab_local.test_signed_runtime_permit -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "SIGNED_RUNTIME_PERMIT_VERIFIER_SOURCE_ONLY_PASS_NOT_ISSUED_OR_LIVE"
