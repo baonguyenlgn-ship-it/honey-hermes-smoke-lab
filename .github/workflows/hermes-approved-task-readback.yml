@@ -1,0 +1,47 @@
+name: Hermes LAB real GitHub owner-task queue Windows readback
+on:
+  push:
+    branches: [hermes-lab/actions-publisher-20261029-01]
+    paths:
+      - hermes_lab_local/approved_task_discovery.py
+      - hermes_lab_local/test_approved_task_discovery.py
+      - .github/workflows/hermes-approved-task-readback.yml
+
+permissions:
+  contents: read
+
+jobs:
+  approved-mission-discovery-readonly:
+    runs-on: windows-latest
+    timeout-minutes: 4
+    steps:
+      - name: Checkout immutable code with no persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Targeted new owner queue admission tests
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "WRONG_HEAD" }
+          python -B -m unittest hermes_lab_local.test_approved_task_discovery -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Read LIVE exact GitHub PR owner queue without tokens
+        shell: pwsh
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          @'
+          import json
+          from hermes_lab_local.approved_task_discovery import read_only_live_discovery
+          output=read_only_live_discovery()
+          assert output["execution_authority_granted"] is False
+          assert output["model_started"] is False
+          assert output["ledger_claimed"] is False
+          assert output["status"] not in (
+              "STOP_GITHUB_READBACK_UNAVAILABLE", "STOP_PR_IDENTITY_NOT_VERIFIED",
+              "STOP_INVALID_REMOTE_HEAD", "STOP_INCOMPLETE_OR_UNTRUSTED_COMMENT_PAGE")
+          print(json.dumps(output,sort_keys=True))
+          print("HERMES_OWNER_QUEUE_LIVE_GITHUB_READBACK_NO_ADMISSION_NO_MODEL")
+          '@ | python -B -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "TASK_DISCOVERY_SOURCE_QA_PASS_NOT_LIVE_AUTOMATIC_CODING"
