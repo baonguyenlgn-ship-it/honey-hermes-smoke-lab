@@ -117,6 +117,9 @@ def model_turn(prompt: str, attempt: int, *, source: Path, temp: Path) -> str:
         executable, str(source / "hermes"), "chat",
         "--query-file", str(prompt_path), "--oneshot",
         "--format", "stream-json", "--max-turns", "1",
+        "--provider", "custom", "--model", "local-qwen",
+        "--base-url", "http://127.0.0.1:18081/v1",
+        "--api-key", "local-fixture-not-secret",
     ]
     try:
         result = subprocess.run(cmd, cwd=source, env=env,
