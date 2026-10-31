@@ -19,26 +19,40 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      # Source parser 15/15 PASS is preserved from 41190125698; this
-      # corrective run retries ONLY the failed real GitHub readback.
-      - name: Diagnose actual public PR queue response (no model, no token)
+      # The original 15/15 parser tests PASS at 41190125698.
+      # This run diagnoses only the actual Windows GitHub API failure.
+      - name: Explain live GitHub API readback failure safely
         shell: pwsh
         env:
           PYTHONUTF8: "1"
         run: |
           if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "WRONG_HEAD" }
           @'
-          import json
-          from hermes_lab_local.approved_task_discovery import read_only_live_discovery
-          output=read_only_live_discovery()
-          print(json.dumps(output,sort_keys=True),flush=True)
-          assert output["execution_authority_granted"] is False
-          assert output["model_started"] is False
-          assert output["ledger_claimed"] is False
-          assert output["status"] not in (
+          import json,urllib.request,urllib.error
+          from hermes_lab_local.approved_task_discovery import read_only_live_discovery,API,PR,LIMIT
+          for label,path in (
+              ("PR",f"{API}/pulls/{PR}"),
+              ("COMMENTS",f"{API}/issues/{PR}/comments?per_page={LIMIT}")):
+              req=urllib.request.Request(path,headers={
+                  "User-Agent":"honey-hermes-approved-task-readonly/1.0",
+                  "Accept":"application/vnd.github+json"})
+              try:
+                  with urllib.request.urlopen(req,timeout=8) as r:
+                      raw=r.read(256001)
+                      print(label+"_HTTP="+str(r.status)+" BYTES="+str(len(raw)),flush=True)
+              except urllib.error.HTTPError as e:
+                  print(label+"_HTTP="+str(e.code),flush=True)
+              except Exception as e:
+                  print(label+"_TRANSPORT="+type(e).__name__,flush=True)
+          result=read_only_live_discovery()
+          print("DISCOVERY="+json.dumps(result,sort_keys=True),flush=True)
+          assert result["execution_authority_granted"] is False
+          assert result["model_started"] is False
+          assert result["ledger_claimed"] is False
+          assert result["status"] not in (
               "STOP_GITHUB_READBACK_UNAVAILABLE", "STOP_PR_IDENTITY_NOT_VERIFIED",
               "STOP_INVALID_REMOTE_HEAD", "STOP_INCOMPLETE_OR_UNTRUSTED_COMMENT_PAGE",
               "STOP_INVALID_OWNER_MISSION", "STOP_UNTRUSTED_COMMENT")
-          print("HERMES_OWNER_QUEUE_REAL_GITHUB_READBACK_NO_ADMISSION_NO_MODEL")
+          print("HERMES_WINDOWS_REAL_GITHUB_PR_QUEUE_READBACK_NO_MODEL")
           '@ | python -B -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
