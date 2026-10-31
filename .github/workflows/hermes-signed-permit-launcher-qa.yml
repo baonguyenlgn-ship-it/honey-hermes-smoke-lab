@@ -1,0 +1,30 @@
+name: Hermes isolated signed permit to launcher Windows integration QA
+on:
+  push:
+    branches: [hermes-lab/honey-isolated-gateway-diagnostics-20261031]
+    paths:
+      - hermes_lab_local/test_signed_permit_launcher_integration.py
+      - .github/workflows/hermes-signed-permit-launcher-qa.yml
+
+permissions:
+  contents: read
+
+jobs:
+  signed-permit-admission-only-integration:
+    runs-on: windows-latest
+    timeout-minutes: 4
+    steps:
+      - name: Checkout exact isolated branch commit without stored credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: ONLY new runtime integration tests with real signature and inert runner
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "WRONG_HEAD" }
+          if ($env:GITHUB_REF -ne 'refs/heads/hermes-lab/honey-isolated-gateway-diagnostics-20261031') { throw "WRONG_BRANCH" }
+          python -m pip install --disable-pip-version-check --only-binary=:all: cryptography==46.0.3
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B -m unittest hermes_lab_local.test_signed_permit_launcher_integration -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "SIGNED_PERMIT_TO_HOST_LAUNCHER_SOURCE_INTEGRATION_PASS_NO_MODEL_OR_REAL_CUSTODY"
