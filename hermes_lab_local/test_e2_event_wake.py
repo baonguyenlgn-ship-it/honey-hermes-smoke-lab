@@ -46,9 +46,15 @@ class E2EventScopeTests(unittest.TestCase):
         a=copy.deepcopy(BASE);a["forced"]=True
         with self.assertRaises(E2Denied):classify_event(a,REQUIRED_MISSION,sha=SHA,event_kind="push",verified_commit=copy.deepcopy(PROOF))
 
-    def test_no_mission_delta_denied(self):
+    def test_partial_payload_is_ok_only_when_authenticated_commit_proves_delta(self):
         a=copy.deepcopy(BASE);a["head_commit"]["added"]=[];a["head_commit"]["modified"]=[]
-        with self.assertRaises(E2Denied):classify_event(a,REQUIRED_MISSION,sha=SHA,event_kind="push",verified_commit=copy.deepcopy(PROOF))
+        receipt=classify_event(a,REQUIRED_MISSION,sha=SHA,event_kind="push",
+                               verified_commit=copy.deepcopy(PROOF))
+        self.assertEqual(receipt["status"],"READ_ONLY_LAB_GITHUB_PUSH_EVENT_VERIFIED")
+        invalid=copy.deepcopy(PROOF);invalid["files"]=[]
+        with self.assertRaises(E2Denied):
+            classify_event(a,REQUIRED_MISSION,sha=SHA,event_kind="push",
+                           verified_commit=invalid)
 
     def test_mission_live_model_flag_denied(self):
         x=dict(REQUIRED_MISSION,approved_for_model_execution=True)
