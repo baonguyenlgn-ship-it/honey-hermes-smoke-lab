@@ -1,0 +1,94 @@
+name: Hermes E2 actual LAB mission push auto wake and independent receipt readback
+on:
+  push:
+    branches: [hermes-lab/e2-event-wake-callback-20261101]
+    paths:
+      - hermes_lab_missions/E2-LAB-AUTO-WAKE-01.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hermes-e2-readonly-mission-receipt-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  e2-receive-actual-github-push-event:
+    runs-on: windows-latest
+    timeout-minutes: 4
+    steps:
+      - name: Checkout exact event SHA with no persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Validate actual event and fixed TEST mission then create read-only receipt
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "E2_WRONG_HEAD" }
+          if ($env:GITHUB_REF -ne 'refs/heads/hermes-lab/e2-event-wake-callback-20261101') { throw "E2_WRONG_BRANCH" }
+          python -B -m hermes_lab_local.e2_event_wake
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload only the actual validated event receipt for independent review
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: hermes-e2-actual-github-push-receipt
+          path: ${{ runner.temp }}/e2-event-receipt/
+          if-no-files-found: error
+          retention-days: 90
+
+  e2-independent-Windows-event-receipt-QA:
+    needs: [e2-receive-actual-github-push-event]
+    runs-on: windows-latest
+    timeout-minutes: 4
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Read same event source on a separate Windows runner
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Download the actual first-job event receipt
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: hermes-e2-actual-github-push-receipt
+          path: ${{ runner.temp }}/e2-downloaded-receipt
+      - name: Verify event receipt SHA, run, mission digest, and denied privileges
+        shell: pwsh
+        env:
+          E2_RECEIPT_PATH: ${{ runner.temp }}/e2-downloaded-receipt/receipt.json
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "E2_READBACK_HEAD_MISMATCH" }
+          @'
+          import hashlib,json,os
+          from pathlib import Path
+          from hermes_lab_local.e2_event_wake import (
+              BRANCH,REPO,TASK,MISSION_FILE,REQUIRED_MISSION,
+          )
+          receipt=json.loads(Path(os.environ["E2_RECEIPT_PATH"]).read_text(encoding="utf8"))
+          mission=json.loads(Path(MISSION_FILE).read_text(encoding="utf8"))
+          digest=hashlib.sha256(json.dumps(mission,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+          required={"schema","task_id","event_type","repo","branch","mission_file",
+                    "push_commit","event_after_matches_commit","mission_sha256",
+                    "status","effects_executed","real_model_launched",
+                    "external_callback_delivered","signed_gate_b_runtime_permit",
+                    "production_authorized","durable_external_cas_claim","github_run_id"}
+          if (set(receipt)!=required
+              or mission!=REQUIRED_MISSION
+              or receipt.get("status")!="READ_ONLY_LAB_GITHUB_PUSH_EVENT_VERIFIED"
+              or receipt.get("task_id")!=TASK
+              or receipt.get("repo")!=REPO or receipt.get("branch")!=BRANCH
+              or receipt.get("event_type")!="push"
+              or receipt.get("mission_file")!=MISSION_FILE
+              or receipt.get("push_commit")!=os.environ["GITHUB_SHA"]
+              or receipt.get("github_run_id")!=int(os.environ["GITHUB_RUN_ID"])
+              or receipt.get("mission_sha256")!=digest
+              or receipt.get("event_after_matches_commit") is not True
+              or any(receipt.get(key) is not False for key in (
+                  "effects_executed","real_model_launched","external_callback_delivered",
+                  "signed_gate_b_runtime_permit","production_authorized","durable_external_cas_claim"))):
+              raise SystemExit("E2_INDEPENDENT_EVENT_RECEIPT_NOT_VERIFIED")
+          print("HERMES_E2_REAL_GITHUB_PUSH_EVENT_AUTO_WAKE_RECEIPT_INDEPENDENT_QA_PASS")
+          print("HERMES_E2_EXTERNAL_CALLBACK=False SIGNED_LIVE_GATE_B=False")
+          '@ | python -B -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
