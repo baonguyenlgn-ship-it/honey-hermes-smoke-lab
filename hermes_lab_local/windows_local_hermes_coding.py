@@ -50,6 +50,59 @@ def qa_original_source(source: str) -> bytes:
             raise QaRejected("INDEPENDENT_BEHAVIOR_REJECTED")
     return raw
 
+def emit_gateway_diagnostics(result, env):
+    """Only redacted booleans/types, never raw gateway stdout/stderr or secrets."""
+    import re
+    stdout = result.stdout[:65536].decode("utf-8", errors="replace")
+    stderr = result.stderr[:65536].decode("utf-8", errors="replace")
+    records = []
+    for line in stdout.splitlines()[:512]:
+        try:
+            event = json.loads(line)
+        except (ValueError, TypeError):
+            continue
+        if isinstance(event, dict) and isinstance(event.get("type"), str):
+            records.append(event)
+    terminal = [e for e in records if e.get("type") == "result"]
+    print("HERMES_DIAG_CLI_EXIT_NONZERO=" + str(result.returncode != 0))
+    print("HERMES_DIAG_STDOUT_BYTES=" + str(len(result.stdout)))
+    print("HERMES_DIAG_STDERR_BYTES=" + str(len(result.stderr)))
+    print("HERMES_DIAG_EVENT_COUNT=" + str(len(records)))
+    print("HERMES_DIAG_LAST_EVENT_TYPE=" + str(records[-1].get("type") if records else "NONE"))
+    print("HERMES_DIAG_TERMINAL_COUNT=" + str(len(terminal)))
+    if terminal:
+        last = terminal[-1]
+        print("HERMES_DIAG_TERMINAL_EXIT_NONZERO=" + str(last.get("exit_code") != 0))
+        print("HERMES_DIAG_TERMINAL_ERROR_PRESENT=" + str(bool(last.get("error"))))
+        print("HERMES_DIAG_TERMINAL_ERROR_CLASS=" +
+              diagnose(str(last.get("error") or ""))["classification"])
+    print("HERMES_DIAG_STDERR_CLASS=" + diagnose(stderr)["classification"])
+    home = env.get("HERMES_HOME")
+    if not home:
+        print("HERMES_DIAG_GATEWAY_LOG_PRESENT=False")
+        return
+    for name in ("gateway.log", "errors.log"):
+        log_path = Path(home) / "logs" / name
+        try:
+            raw = log_path.read_bytes()
+            sample = raw[-65536:].decode("utf-8", errors="replace")
+        except OSError:
+            print("HERMES_DIAG_" + name.replace(".", "_").upper() + "_PRESENT=False")
+            continue
+        label = "HERMES_DIAG_" + name.replace(".", "_").upper()
+        print(label + "_PRESENT=True")
+        print(label + "_CLASS=" + diagnose(sample)["classification"])
+        print(label + "_ERROR_LINE_COUNT=" +
+              str(sum(bool(re.search(r"(?i)error|exception|fail|refused|denied",
+                                     line)) for line in sample.splitlines())))
+        print(label + "_HTTP_401=" + str(bool(re.search(r"(?i)\\b401\\b", sample))))
+        print(label + "_HTTP_400=" + str(bool(re.search(r"(?i)\\b400\\b", sample))))
+        print(label + "_PROVIDER_CUSTOM=" +
+              str(bool(re.search(r"(?i)provider.{0,40}custom", sample))))
+        print(label + "_MODEL_LOCAL=" +
+              str(bool(re.search(r"(?i)local-qwen|127\\.0\\.0\\.1:18081", sample))))
+
+
 def model_turn(prompt: str, attempt: int, *, source: Path, temp: Path) -> str:
     prompt_path = temp / f"request-{attempt}.txt"
     prompt_path.write_text(prompt, encoding="utf-8")
@@ -75,6 +128,7 @@ def model_turn(prompt: str, attempt: int, *, source: Path, temp: Path) -> str:
         # API fields, model messages or the private stderr.
         reason = diagnose(result.stderr.decode("utf-8", errors="replace"))
         print("HERMES_LOCAL_GATEWAY_FAILURE_CLASS=" + reason["classification"])
+        emit_gateway_diagnostics(result, env)
         raise RuntimeError("HERMES_CLI_PROVIDER_OR_PROTOCOL_FAILED_NO_RETRY")
     try:
         response = terminal_source(result.stdout.decode("utf-8", "strict"))
