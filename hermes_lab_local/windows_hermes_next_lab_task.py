@@ -78,11 +78,12 @@ def check_predecessor_and_owner_queue() -> dict:
             or queue.get("ledger_claimed") is not False):
         raise RuntimeError("OWNER_QUEUE_PRIVILEGE_STATE_UNTRUSTED")
     return {"predecessor_run":PREVIOUS_RUN_ID,
-            "current_owner_queue":queue["status"],def qa_new_task(source: str) -> bytes:
-    # The previously exact byte-for-byte AST requirement rejected legitimate
-    # alternate implementations; only the narrowly constrained AST node
-    # allowlist plus independent behavior tests may approve this fixed LAB task.
-    # It prohibits loops, imports, attributes, arbitrary calls and effects.
+            "current_owner_queue":queue["status"],
+            "scope":"fixed-isolated-no-github-writes"}
+
+def qa_new_task(source: str) -> bytes:
+    # Accept only the independently approved bounded AST grammar and tests,
+    # not any arbitrary executable code returned by the AI.
     return qa_semantic_low_stock(source)
 
 def main():
