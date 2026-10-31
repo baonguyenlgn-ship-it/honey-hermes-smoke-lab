@@ -8,6 +8,7 @@ new LAB model bytes after an independent, bounded AST+behavior QA PASS.
 from __future__ import annotations
 
 import ast
+import base64
 import hashlib
 import json
 import os
@@ -177,6 +178,10 @@ def main() -> None:
         )
         print("HERMES_E1_REAL_MODEL_QA_PASS_SOURCE_WRITTEN_TO_RUNNER_ARTIFACT=" + digest, flush=True)
         print("HERMES_E1_ARTIFACT_BYTES=" + str(len(source)), flush=True)
+        # The fixed LAB task has no customer input or secrets. This accepted
+        # code may be independently archived in an isolated GitHub evidence
+        # commit AFTER artifact download QA; never print model credentials.
+        print("HERMES_E1_ACCEPTED_SOURCE_BASE64=" + base64.b64encode(source).decode("ascii"), flush=True)
         print("HERMES_E1_INDEPENDENT_READBACK=PENDING", flush=True)
         return
     raise RuntimeError("E1_UNREACHABLE")
