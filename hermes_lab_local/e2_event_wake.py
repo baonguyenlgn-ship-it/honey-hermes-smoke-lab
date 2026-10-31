@@ -19,6 +19,7 @@ D_EVIDENCE=41216407415
 E1_EVIDENCE=41220878044
 REQUIRED_MISSION={
     "schema":"honey.hermes.e2.fixed-readonly-test-mission.v1",
+    "event_revision":2,
     "task_id":TASK,
     "allowed_scope":"READ_ONLY_LAB_EVENT_RECEIPT",
     "origin":"OWNER_CURRENT_CHAT_TEST_MANDATE",
@@ -36,7 +37,29 @@ REQUIRED_MISSION={
 class E2Denied(RuntimeError):
     pass
 
-def classify_event(event: dict, mission: dict, *, sha: str, event_kind: str) -> dict:
+def fetch_exact_git_commit(sha: str) -> dict:
+    """GitHub Actions push payload may omit file deltas; verify via GitHub API."""
+    import urllib.request
+    if len(sha)!=40 or any(c not in "0123456789abcdef" for c in sha):
+        raise E2Denied("UNTRUSTED_SHA")
+    url=f"https://api.github.com/repos/{REPO}/commits/{sha}"
+    req=urllib.request.Request(url,method="GET",headers={
+        "User-Agent":"honey-hermes-e2-exact-commit-delta",
+        "Accept":"application/vnd.github+json",
+    })
+    try:
+        with urllib.request.urlopen(req,timeout=12) as res:
+            if res.status!=200 or res.geturl()!=url:
+                raise E2Denied("COMMIT_READBACK_HTTP_INVALID")
+            raw=res.read(65537)
+        if len(raw)>65536:
+            raise E2Denied("COMMIT_READBACK_TOO_LARGE")
+        return json.loads(raw)
+    except (OSError,ValueError):
+        raise E2Denied("COMMIT_READBACK_NOT_PROVEN") from None
+
+def classify_event(event: dict, mission: dict, *, sha: str,
+                   event_kind: str, verified_commit: dict) -> dict:
     if (not isinstance(event,dict)
             or event_kind!="push"
             or event.get("ref")!="refs/heads/"+BRANCH
@@ -48,9 +71,19 @@ def classify_event(event: dict, mission: dict, *, sha: str, event_kind: str) -> 
             or event["before"]==sha
             or not isinstance(event.get("head_commit"),dict)):
         raise E2Denied("UNTRUSTED_OR_REPLAYED_GITHUB_PUSH_EVENT")
-    head=event["head_commit"]
-    if MISSION_FILE not in head.get("added",[]) and MISSION_FILE not in head.get("modified",[]):
-        raise E2Denied("E2_MISSION_NOT_CHANGED_BY_EVENT")
+    # GitHub Actions push event can omit head_commit.added/modified. Do not
+    # fail open or trust client-supplied event deltas: independently read the
+    # exact repository commit, matching its one parent and changed file list.
+    files=verified_commit.get("files") if isinstance(verified_commit,dict) else None
+    parents=verified_commit.get("parents") if isinstance(verified_commit,dict) else None
+    if (verified_commit.get("sha")!=sha
+            or not isinstance(parents,list) or len(parents)!=1
+            or parents[0].get("sha")!=event["before"]
+            or not isinstance(files,list)
+            or len(files)!=1
+            or files[0].get("filename")!=MISSION_FILE
+            or files[0].get("status") not in ("added","modified")):
+        raise E2Denied("E2_COMMIT_DELTA_NOT_AUTHENTICATED")
     if not isinstance(mission,dict) or mission!=REQUIRED_MISSION:
         raise E2Denied("UNTRUSTED_OR_PRIVILEGED_MISSION")
     return {
@@ -86,7 +119,8 @@ def main():
         raise E2Denied("MISSING_FIXED_MISSION_FILE")
     mission=json.loads(mission_path.read_text(encoding="utf-8"))
     receipt=classify_event(event,mission,sha=os.environ["GITHUB_SHA"],
-                            event_kind=os.environ["GITHUB_EVENT_NAME"])
+                            event_kind=os.environ["GITHUB_EVENT_NAME"],
+                            verified_commit=fetch_exact_git_commit(os.environ["GITHUB_SHA"]))
     receipt["github_run_id"]=int(os.environ["GITHUB_RUN_ID"])
     out=Path(os.environ["RUNNER_TEMP"])/"e2-event-receipt"
     out.mkdir(mode=0o700,exist_ok=False)
