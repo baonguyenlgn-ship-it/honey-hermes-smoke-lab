@@ -19,29 +19,26 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Targeted new owner queue admission tests
-        shell: pwsh
-        run: |
-          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "WRONG_HEAD" }
-          python -B -m unittest hermes_lab_local.test_approved_task_discovery -v
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Read LIVE exact GitHub PR owner queue without tokens
+      # Source parser 15/15 PASS is preserved from 41190125698; this
+      # corrective run retries ONLY the failed real GitHub readback.
+      - name: Diagnose actual public PR queue response (no model, no token)
         shell: pwsh
         env:
           PYTHONUTF8: "1"
         run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "WRONG_HEAD" }
           @'
           import json
           from hermes_lab_local.approved_task_discovery import read_only_live_discovery
           output=read_only_live_discovery()
+          print(json.dumps(output,sort_keys=True),flush=True)
           assert output["execution_authority_granted"] is False
           assert output["model_started"] is False
           assert output["ledger_claimed"] is False
           assert output["status"] not in (
               "STOP_GITHUB_READBACK_UNAVAILABLE", "STOP_PR_IDENTITY_NOT_VERIFIED",
-              "STOP_INVALID_REMOTE_HEAD", "STOP_INCOMPLETE_OR_UNTRUSTED_COMMENT_PAGE")
-          print(json.dumps(output,sort_keys=True))
-          print("HERMES_OWNER_QUEUE_LIVE_GITHUB_READBACK_NO_ADMISSION_NO_MODEL")
+              "STOP_INVALID_REMOTE_HEAD", "STOP_INCOMPLETE_OR_UNTRUSTED_COMMENT_PAGE",
+              "STOP_INVALID_OWNER_MISSION", "STOP_UNTRUSTED_COMMENT")
+          print("HERMES_OWNER_QUEUE_REAL_GITHUB_READBACK_NO_ADMISSION_NO_MODEL")
           '@ | python -B -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Write-Output "TASK_DISCOVERY_SOURCE_QA_PASS_NOT_LIVE_AUTOMATIC_CODING"
