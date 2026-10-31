@@ -55,7 +55,7 @@ class IndependentTaskDQA(unittest.TestCase):
 
     def test_isolated_code_fence_is_not_exec_before_envelope_validation(self):
         with self.assertRaises(QaRejected):
-            qa_semantic_low_stock("&#96;&#96;&#96;python\n" + VALID[0] + "\n&#96;&#96;&#96;")
+            qa_semantic_low_stock("\x60\x60\x60python\n" + VALID[0] + "\n\x60\x60\x60")
 
 if __name__=="__main__":
     unittest.main()
