@@ -18,6 +18,8 @@ BRANCH = "hermes-lab/actions-publisher-20261029-01"
 API = f"https://api.github.com/repos/{REPO}"
 SHA_RE = re.compile(r"[a-f0-9]{40}\Z")
 LIMIT = 100
+PAGE_SIZE = 20
+MAX_PAGES = LIMIT // PAGE_SIZE
 MAX_BYTES = 256000
 
 
@@ -78,8 +80,12 @@ def choose_owner_approved(comments, head: str) -> dict:
 
 
 def _get(url: str, opener=None):
-    if url not in (f"{API}/pulls/{PR}",
-                   f"{API}/issues/{PR}/comments?per_page={LIMIT}"):
+    fixed_urls = {f"{API}/pulls/{PR}"}
+    fixed_urls.update(
+        f"{API}/issues/{PR}/comments?per_page={PAGE_SIZE}&page={i}"
+        for i in range(1, MAX_PAGES + 1)
+    )
+    if url not in fixed_urls:
         raise ValueError("UNAPPROVED_API_TARGET")
     req = urllib.request.Request(url, headers={
         "Accept": "application/vnd.github+json",
@@ -104,8 +110,19 @@ def read_only_live_discovery(opener=None) -> dict:
                 or pr["base"]["repo"]["full_name"] != REPO):
             return _result("STOP_PR_IDENTITY_NOT_VERIFIED")
         live_head = head["sha"]
-        comments = _get(f"{API}/issues/{PR}/comments?per_page={LIMIT}", opener)
-        return choose_owner_approved(comments, live_head)
+        comments = []
+        for page_index in range(1, MAX_PAGES + 1):
+            page = _get(
+                f"{API}/issues/{PR}/comments?per_page={PAGE_SIZE}&page={page_index}",
+                opener,
+            )
+            if not isinstance(page, list) or len(page) > PAGE_SIZE:
+                return _result("STOP_INCOMPLETE_OR_UNTRUSTED_COMMENT_PAGE")
+            comments.extend(page)
+            if len(page) < PAGE_SIZE:
+                return choose_owner_approved(comments, live_head)
+        # Never silently accept a full last page: more comments may exist.
+        return _result("STOP_INCOMPLETE_OR_UNTRUSTED_COMMENT_PAGE")
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
         return _result("STOP_GITHUB_READBACK_UNAVAILABLE")
 
