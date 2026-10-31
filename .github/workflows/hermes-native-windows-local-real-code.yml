@@ -1,9 +1,10 @@
-name: Hermes native Windows real local model code and bounded QA repair
+name: Hermes native Windows real AIAgent local model code and QA repair
 on:
   push:
     branches: [hermes-lab/honey-isolated-gateway-diagnostics-20261031]
     paths:
       - hermes_lab_local/windows_local_hermes_coding.py
+      - hermes_lab_local/windows_local_hermes_direct_agent.py
       - .github/workflows/hermes-native-windows-local-real-code.yml
 
 permissions:
@@ -113,22 +114,11 @@ jobs:
           '@ | Set-Content -LiteralPath $config -Encoding utf8
           $env:HERMES_UPSTREAM_SOURCE = $checkout
           $env:HERMES_PYTHON = if($env:PYTHON) { $env:PYTHON } else { 'python' }
-          # Real source failure 41208287746: Hermes thin CLI auto-spawn
-          # rejected by GitHub Windows Job Object ("windows_breakaway_unavailable").
-          # Launch upstream's supported foreground gateway as a normal child
-          # IN THE SAME GitHub Windows job; never detach or bypass Job Object.
-          $gatewayOut = Join-Path $dir 'private-foreground-gateway.out'
-          $gatewayErr = Join-Path $dir 'private-foreground-gateway.err'
-          $gatewayProcess = Start-Process -FilePath $env:HERMES_PYTHON -ArgumentList @(
-            (Join-Path $checkout 'hermes'), 'gateway', 'run'
-          ) -PassThru -RedirectStandardOutput $gatewayOut -RedirectStandardError $gatewayErr
-          Start-Sleep -Seconds 15
-          if ($gatewayProcess.HasExited) {
-            Write-Output "HERMES_WINDOWS_FOREGROUND_GATEWAY_EXITED_NO_RETRY"
-            throw "HERMES_GATEWAY_CHILD_DID_NOT_STAY_ALIVE"
-          }
-          Write-Output "HERMES_WINDOWS_FOREGROUND_GATEWAY_CHILD_RUNNING_IN_CI_JOB"
+          # The Hermes v0.22.5 thin gateway CLI requires Windows breakaway
+          # (confirmed impossible in hosted GitHub Actions 41208287746).
+          # Use upstream's actual in-process AIAgent API, not CLI impersonation.
+          # No GitHub writer/issuer/Nous credentials and no gateway auto-spawn.
           Set-Location $env:GITHUB_WORKSPACE
-          python -B -m hermes_lab_local.windows_local_hermes_coding
+          python -B -m hermes_lab_local.windows_local_hermes_direct_agent
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Output "HERMES_NATIVE_WINDOWS_REAL_LOCAL_AI_CODE_QA_ATTEMPT_COMPLETED"
