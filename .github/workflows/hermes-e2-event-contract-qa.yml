@@ -1,0 +1,26 @@
+name: Hermes E2 only GitHub push event safety contract QA
+on:
+  push:
+    branches: [hermes-lab/e2-event-wake-callback-20261101]
+    paths:
+      - hermes_lab_local/test_e2_event_wake.py
+      - .github/workflows/hermes-e2-event-contract-qa.yml
+permissions:
+  contents: read
+jobs:
+  event-contract-only:
+    runs-on: windows-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout isolated E2 source with no credentials persisted
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Test only E2 new event guard and denial behavior
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "HEAD_MISMATCH" }
+          if ($env:GITHUB_REF -ne 'refs/heads/hermes-lab/e2-event-wake-callback-20261101') { throw "BRANCH_MISMATCH" }
+          python -B -m unittest hermes_lab_local.test_e2_event_wake -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Output "HERMES_E2_SOURCE_EVENT_GUARD_PASS_NO_ACTUAL_EVENT_YET"
