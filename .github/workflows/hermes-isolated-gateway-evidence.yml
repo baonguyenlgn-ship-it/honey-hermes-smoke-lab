@@ -1,0 +1,45 @@
+name: Hermes isolated Windows gateway evidence triage
+on:
+  push:
+    branches:
+      - hermes-lab/honey-isolated-gateway-diagnostics-20261031
+    paths:
+      - hermes_lab_local/gateway_failure_evidence.py
+      - hermes_lab_local/test_gateway_failure_evidence.py
+      - .github/workflows/hermes-isolated-gateway-evidence.yml
+
+permissions:
+  contents: read
+
+jobs:
+  triage-previous-real-ci-generic-error:
+    runs-on: windows-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout isolated exact HEAD without stored credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Run only the new no-secret triage tests
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne $env:GITHUB_SHA) { throw "WRONG_SOURCE_HEAD" }
+          if ($env:GITHUB_REF -ne 'refs/heads/hermes-lab/honey-isolated-gateway-diagnostics-20261031') {
+            throw "SHARED_BRANCH_OR_SCOPE_MISMATCH"
+          }
+          python -B -m unittest hermes_lab_local.test_gateway_failure_evidence -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          @'
+          import json
+          from hermes_lab_local.gateway_failure_evidence import diagnose
+          # Actual previously logged public CLI symptom; this does NOT fake
+          # the missing private gateway.log nor claim root cause.
+          symptom="HERMES_LOCAL_CLI_DIAGNOSTIC_FAILURE=Something went wrong and I couldn't finish this reply."
+          result=diagnose(symptom)
+          assert result["classification"] == "GATEWAY_GENERIC_FAILURE_ONLY"
+          assert result["root_cause_proven"] is False
+          assert result["auto_retry_authorized"] is False
+          print(json.dumps(result,sort_keys=True))
+          print("HERMES_GATEWAY_SYMPTOM_TRIAGED_ROOT_CAUSE_STILL_NOT_PROVEN")
+          '@ | python -B -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
