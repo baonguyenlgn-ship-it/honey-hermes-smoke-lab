@@ -20,7 +20,7 @@ class UnapprovedExecutionBoundary(unittest.TestCase):
         fake_pr={"head":{"sha":"does-not-leave-test"}}
         live={"body":"not-an-actual-owner-comment"}
         patches=[
-            patch("hermes_lab_local.live_execution_gate.os.geteuid",return_value=1000),
+            patch("hermes_lab_local.live_execution_gate.os.geteuid",return_value=1000,create=True),
             patch.dict(os.environ,{"CODESPACES":"true","CODESPACE_NAME":HOST}),
             patch("hermes_lab_local.live_execution_gate.protected_json",side_effect=lambda x:bundle if x==LEASE_FILE else {}),
             patch("hermes_lab_local.live_execution_gate.trusted_context",return_value=host),
