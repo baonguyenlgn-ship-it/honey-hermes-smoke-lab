@@ -1,0 +1,30 @@
+{
+  "schema": "honey.hermes.e1.permanent-model-source-seal.v1",
+  "task_id": "HERMES-E1-STOCK-GAP-DURABLE-01",
+  "classification": "REAL_LOCAL_HERMES_MODEL_QA_PASS_UNSIGNED_TEST_ONLY",
+  "original_source_path": "hermes_lab_evidence/E1-stock-gap-run-41220878044/original_model_generated.py",
+  "original_source_sha256": "d1e52c92ff1954bcce3a03d1b4d5c0dab66151314aaf23290468bf47e53a1687",
+  "original_source_bytes": 75,
+  "model": "local-loopback-Qwen2.5-Coder-1.5B",
+  "hermes_upstream_sha": "bf0203a794a07aac3ff764972ab9087baa4e4f4e",
+  "source_workflow_run_id": 41220878044,
+  "source_workflow_head": "7f39e887591b6293514d0aea9022c904a5af587a",
+  "producer_job_id": 124594974925,
+  "independent_download_qa_job_id": 124595718487,
+  "model_attempts": 2,
+  "model_repairs": 1,
+  "artifact_id": 13049898229,
+  "artifact_archive_sha256": "e07903a84f0579a74ebdad7ee7e4468daa00d9a39cbfa3baf76d9883253acedf",
+  "artifact_expiry_utc": "2027-01-29T16:41:18Z",
+  "preceding_real_d_windows_run": 41216407415,
+  "github_run_url": "https://github.com/baonguyenlgn-ship-it/honey-hermes-smoke-lab/actions/runs/41220878044",
+  "branch": "hermes-lab/e1-durable-evidence-20261101",
+  "scope": {
+    "signed_gate_b": false,
+    "public_main_merged": false,
+    "owner_event_wake_verified": false,
+    "automatic_callback_verified": false,
+    "source_reconstruction_from_hash": false
+  },
+  "archive_note": "Read-only evidence archival by authorized chat GitHub connector from real model source bytes printed in producer log; permanent isolated Git branch; does not claim autonomous broker source push."
+}
