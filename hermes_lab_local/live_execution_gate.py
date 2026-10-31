@@ -17,11 +17,13 @@ from pathlib import Path
 from .v31.execution_adapter import claim, prepare
 from .v31.gate_bridge import fetch_snapshot, fetch_live_consent
 from .v31.host_authority import ROOT as AUTH_ROOT, fence_check, trusted_context
-from .v31.one_use_lease_gate import AdmissionDenied, MODEL, HOST
+from .v31.one_use_lease_gate import AdmissionDenied, MODEL, HOST, canonical_json
+from .signed_runtime_permit import verify_host_execution_permit
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FREE_EVIDENCE = AUTH_ROOT / "nous-account-free-readback.json"
 LEASE_FILE = AUTH_ROOT / "current-lease.json"
+PERMIT_FILE = AUTH_ROOT / "current-runtime-permit.json"
 MAX_EVIDENCE_AGE_SECONDS = 120
 REPAIR_SCRIPT = ("bash", "hermes_lab_local/codespaces_repair_loop.sh")
 BROKER_COMMAND = (sys.executable, "-m", "hermes_lab_local.repair_broker")
@@ -106,18 +108,66 @@ def run_supervised_once(live_comment_id: int, *, run_command=None):
     live = fetch_live_consent(live_comment_id)
     # No effect: this check must complete before consuming one-use admission.
     ready = prepare(pr, legacy, bundle, host, live, now=now)
-    # V3.1 prepare/claim explicitly return permitted_to_execute=False:
-    # signing an admission is NOT authorization to launch a model.  Reject
-    # BEFORE claiming/consuming the one-use ledger; never infer permission.
-    if not isinstance(ready, dict) or ready.get("permitted_to_execute") is not True:
+    # V3.1 is an admission protocol only.  Its explicit False must NEVER
+    # become True through a source edit or an unsiged GitHub comment.
+    if (not isinstance(ready, dict)
+            or ready.get("permitted_to_execute") is not False
+            or not isinstance(ready.get("bound_ticket"), dict)
+            or not isinstance(ready.get("consent"), dict)
+            or ready["consent"].get("status") != "OWNER_LIVE_INTENT_VALIDATED_NOT_EXECUTED"
+            or ready["consent"].get("owner_live_comment_id") != live_comment_id
+            or ready["consent"].get("lease_jti") != bundle["claims"]["jti"]
+            or ready["consent"].get("head") != bundle["claims"]["head"]):
+        raise AdmissionDenied("EXECUTION_PERMISSION_NOT_GRANTED")
+
+    # A second, independently signed and *host-protected* permit binds the
+    # precise lease, Owner JTI consent and finite TEST-only runtime scope.
+    # This check has zero side effects, and is BEFORE durable one-use claim.
+    try:
+        permit = protected_json(PERMIT_FILE)
+        eligibility = verify_host_execution_permit(
+            permit, bundle, ready["bound_ticket"], live_comment_id, host,
+            now=int(time.time()),
+        )
+    except AdmissionDenied:
+        raise AdmissionDenied("EXECUTION_PERMISSION_NOT_GRANTED") from None
+    if (eligibility.get("status")
+            != "SIGNED_SEPARATE_RUNTIME_PERMIT_ELIGIBLE_NOT_CLAIMED"
+            or eligibility.get("lease_jti") != bundle["claims"]["jti"]
+            or eligibility.get("head") != bundle["claims"]["head"]
+            or eligibility.get("owner_live_comment_id") != live_comment_id
+            or eligibility.get("execution_started") is not False):
         raise AdmissionDenied("EXECUTION_PERMISSION_NOT_GRANTED")
     pr_again, _ = fetch_snapshot()
     receipt = claim(pr, legacy, pr_again, bundle, host, live, now=int(time.time()))
+    # The claim receipt is STILL admission-only.  Runtime authorization
+    # comes exclusively from the separately signed permit above, not this
+    # deliberately False flag.  A malformed receipt must never execute.
     if (not isinstance(receipt, dict)
             or receipt.get("status") != "CLAIMED_NOT_EXECUTED"
+            or receipt.get("jti") != bundle["claims"]["jti"]
+            or receipt.get("expected_head") != bundle["claims"]["head"]
             or receipt.get("owner_live_comment_id") != live_comment_id
-            or receipt.get("permitted_to_execute") is not True):
-        raise AdmissionDenied("EXECUTION_PERMISSION_NOT_GRANTED")
+            or receipt.get("permitted_to_execute") is not False):
+        raise AdmissionDenied("CLAIM_RECEIPT_NOT_ADMISSION_ONLY_NO_RETRY")
+
+    # Once claimed, no failures can be retried blindly. Verify the fence,
+    # unchanged protected permit and its time-bound signature again just
+    # before each privileged stage (model, then TEST-only broker).
+    def require_fresh_runtime_scope():
+        fence_check(bundle)
+        latest = protected_json(PERMIT_FILE)
+        if canonical_json(latest) != canonical_json(permit):
+            raise AdmissionDenied("RUNTIME_PERMIT_CHANGED_NO_RETRY")
+        verify_host_execution_permit(
+            latest, bundle, ready["bound_ticket"], live_comment_id, host,
+            now=int(time.time()),
+        )
+        verify_free_account_evidence(
+            protected_json(FREE_EVIDENCE), now=int(time.time()),
+        )
+
+    require_fresh_runtime_scope()
     # Once claimed, an error / crash is NOT retried: ledger remains consumed.
     # The existing script drops GitHub tokens and invokes uid999 in a private LAB.
     runner = subprocess.run if run_command is None else run_command
@@ -127,6 +177,7 @@ def run_supervised_once(live_comment_id: int, *, run_command=None):
         raise AdmissionDenied("MODEL_OUTCOME_UNKNOWN_NO_RETRY") from None
     if first.returncode != 0:
         raise AdmissionDenied("MODEL_OR_QA_BLOCKED_NO_RETRY")
+    require_fresh_runtime_scope()
     try:
         pushed = runner(BROKER_COMMAND, cwd=REPO_ROOT, check=False, timeout=90)
     except (OSError, subprocess.TimeoutExpired):
